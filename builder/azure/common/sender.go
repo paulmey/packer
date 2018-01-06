@@ -1,0 +1,8 @@
+package common
+
+import (
+	"github.com/Azure/go-autorest/autorest"
+	"net/http"
+)
+
+var Sender = autorest.SenderFunc(http.DefaultClient.Do)
