@@ -67,15 +67,16 @@ func (c *ClientConfig) ResolveClient() error {
 		if to.String(sub.SubscriptionID) == c.SubscriptionID {
 
 			log.Printf("azure: found subscription %q (%s)",
-				sub.DisplayName,
-				sub.SubscriptionID)
+				to.String(sub.DisplayName),
+				to.String(sub.SubscriptionID))
 			found = true
 			break
 		}
 	}
 	if !found {
 		log.Print("azure: subscription not found")
-		return errors.New("Subscription %s not available using these credentials")
+		return fmt.Errorf("Subscription %s not available using these credentials",
+			c.SubscriptionID)
 	}
 
 	return nil

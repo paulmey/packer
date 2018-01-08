@@ -17,7 +17,7 @@ func GetComputeMetadata() (ComputeMetadata, error) {
 	}
 	req.Header.Set("Metadata", "true ")
 
-	res, err := Sender(req)
+	res, err := Sender.Do(req)
 	if err != nil {
 		return rv, err
 	}
