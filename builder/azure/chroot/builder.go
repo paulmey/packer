@@ -46,9 +46,19 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		return warns, fmt.Errorf("Error retrieving VM metadata (%q), "+
 			"is this an Azure VM?", err)
 	}
-	if b.config.SubscriptionID != "" ||
+	if md.SubscriptionID == "" ||
+		md.Name == "" ||
+		md.Location == "" ||
+		md.ResourceGroupName == "" {
+		return warns, fmt.Errorf("VM metadata is not complete (%+v), "+
+			"is this an Azure VM?", md)
+	}
+	if b.config.SubscriptionID != "" &&
 		b.config.SubscriptionID != md.SubscriptionID {
-		warns = append(warns, "subscription_id is overridden with VM subscription id")
+		warns = append(warns, fmt.Sprintf("subscription_id (%s) is overridden "+
+			"with VM subscription id (%s)",
+			b.config.SubscriptionID,
+			md.SubscriptionID))
 	}
 	b.config.SubscriptionID = md.SubscriptionID
 
