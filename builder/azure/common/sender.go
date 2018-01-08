@@ -5,4 +5,4 @@ import (
 	"net/http"
 )
 
-var Sender = autorest.SenderFunc(http.DefaultClient.Do)
+var Sender autorest.Sender = autorest.SenderFunc(http.DefaultClient.Do)
