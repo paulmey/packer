@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-03-30/compute"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/to"
-	"log"
 )
 
 type ClientConfig struct {
@@ -21,8 +23,6 @@ type ClientConfig struct {
 	OAuthToken             string `mapstructure:"oauth_token"`
 
 	ManagementURI string `mapstructure:"management_uri"`
-
-	client AzureClient
 }
 
 const (
@@ -39,7 +39,7 @@ type ServicePrincipalConfig struct {
 	TenantID     string `mapstructure:"tenant_id"`
 }
 
-func (c *ClientConfig) ResolveClient() error {
+func (c *ClientConfig) GetClient() (AzureClient, error) {
 	if c.SubscriptionID == "" {
 		errors.New("subscription_id is required.")
 	}
@@ -47,6 +47,7 @@ func (c *ClientConfig) ResolveClient() error {
 	cli := azureClient{
 		autorest.NewClientWithUserAgent("Packer.io"),
 		c.ManagementURI,
+		c.SubscriptionID,
 	}
 
 	if cli.BaseUri == "" {
@@ -54,17 +55,16 @@ func (c *ClientConfig) ResolveClient() error {
 	}
 
 	cli.Sender = Sender
-	c.client = cli
 
-	iter, err := c.client.SubscriptionsClient().ListComplete(context.Background())
+	iter, err := cli.SubscriptionsClient().ListComplete(context.Background())
 	if err != nil {
-		return fmt.Errorf("Error retrieving subscriptions: %v", err)
+		return azureClient{}, fmt.Errorf("Error retrieving subscriptions: %v", err)
 	}
 
 	found := false
 	for ; iter.NotDone(); iter.Next() {
 		sub := iter.Value()
-		if to.String(sub.SubscriptionID) == c.SubscriptionID {
+		if to.String(sub.SubscriptionID) == cli.SubscriptionID {
 
 			log.Printf("azure: found subscription %q (%s)",
 				to.String(sub.DisplayName),
@@ -75,25 +75,42 @@ func (c *ClientConfig) ResolveClient() error {
 	}
 	if !found {
 		log.Print("azure: subscription not found")
-		return fmt.Errorf("Subscription %s not available using these credentials",
+		return azureClient{}, fmt.Errorf("Subscription %s not available using these credentials",
 			c.SubscriptionID)
 	}
 
-	return nil
+	return cli, nil
 }
 
 type AzureClient interface {
 	SubscriptionsClient() subscriptions.Client
+	PlatformImagesClient() compute.VirtualMachineImagesClient
+	ManagedDisksClient() compute.DisksClient
 }
 
 type azureClient struct {
 	autorest.Client
-	BaseUri string
+	BaseUri        string
+	SubscriptionID string
 }
 
 func (c azureClient) SubscriptionsClient() subscriptions.Client {
 	cli := subscriptions.NewClientWithBaseURI(c.BaseUri)
 	cli.Client = c.Client
 	cli.Client.UserAgent = subscriptions.UserAgent()
+	return cli
+}
+
+func (c azureClient) PlatformImagesClient() compute.VirtualMachineImagesClient {
+	cli := compute.NewVirtualMachineImagesClientWithBaseURI(c.BaseUri, c.SubscriptionID)
+	cli.Client = c.Client
+	cli.Client.UserAgent = compute.UserAgent()
+	return cli
+}
+
+func (c azureClient) ManagedDisksClient() compute.DisksClient {
+	cli := compute.NewDisksClientWithBaseURI(c.BaseUri, c.SubscriptionID)
+	cli.Client = c.Client
+	cli.Client.UserAgent = compute.UserAgent()
 	return cli
 }

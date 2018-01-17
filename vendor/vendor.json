@@ -60,6 +60,12 @@
 			"versionExact": "v10.0.3-beta"
 		},
 		{
+			"checksumSHA1": "J+eyn2CUPlpoXszLA2v2z7+T5Jk=",
+			"path": "github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-03-30/compute",
+			"revision": "57da6001a1d275435ae24b8a39c04828d9623321",
+			"revisionTime": "2018-01-05T22:06:05Z"
+		},
+		{
 			"checksumSHA1": "92f8cqsxx2b1xn8iLtj2ZZZn59I=",
 			"path": "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions",
 			"revision": "57da6001a1d275435ae24b8a39c04828d9623321",
