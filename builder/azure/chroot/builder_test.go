@@ -53,9 +53,10 @@ func TestBuilderPrepare_WhenSourceUrnNotExistsThenFail(t *testing.T) {
 	if len(warn) != 0 {
 		t.Log("Warnings: ", warn)
 	}
-	if err == nil || !strings.Contains(err.Error(), "Image not found") ||
+	if err == nil ||
+		!strings.Contains(err.Error(), "Config: Image URN not found") ||
 		!strings.Contains(err.Error(), image) {
-		t.Errorf("Expected 'Image not found' but got %q", err)
+		t.Errorf("Expected 'Config: Image URN not found' but got %q", err)
 	}
 }
 
@@ -94,7 +95,10 @@ func TestBuildPrepare_WarnsSubscriptionIDOverride(t *testing.T) {
 	c["subscription_id"] = "not-the-vm-metadata-sub-id"
 	b := Builder{}
 
-	warns, _ := b.Prepare(c)
+	warns, err := b.Prepare(c)
+	if err != nil {
+		t.Logf("err: %+v", err)
+	}
 	for _, w := range warns {
 		matched, err := regexp.MatchString("subscription_id \\([^)]*\\) is overridden", w)
 		if err != nil {
@@ -126,7 +130,34 @@ func TestMain(m *testing.M) {
 							"subscriptionId": "125",
 							"displayName":    "Mocked Subscription",
 						}}}),
+			httpmock.GetNotFound("^https://management.azure.com/subscriptions/[^/]+/providers/Microsoft.Compute/locations/[^/]+/publishers/[^/]+/artifacttypes/vmimage/offers/[^/]+/skus/[^/]+/versions\\?",
+				response_image_not_found_error),
 		}}
 
 	os.Exit(m.Run())
 }
+
+const (
+	response_image_not_found_error string = `{
+		"error": {
+			"code": "NotFound",
+			"message": "Artifact: VMImage was not found."
+		}
+	}`
+	response_list_platform_image_version string = `[
+	{
+		"location": "westus",
+		"name": "4.0.20160617",
+		"id": "/Subscriptions/{subscription-id}/Providers/Microsoft.Compute/Locations/westus/Publishers/PublisherA/ArtifactTypes/VMImage/Offers/OfferA/Skus/SkuA/Versions/4.0.20160617"
+	},
+	{
+		"location": "westus",
+		"name": "4.0.20160721",
+		"id": "/Subscriptions/{subscription-id}/Providers/Microsoft.Compute/Locations/westus/Publishers/PublisherA/ArtifactTypes/VMImage/Offers/OfferA/Skus/SkuA/Versions/4.0.20160721"
+	},
+	{
+		"location": "westus",
+		"name": "4.0.20160812",
+		"id": "/Subscriptions/{subscription-id}/Providers/Microsoft.Compute/Locations/westus/Publishers/PublisherA/ArtifactTypes/VMImage/Offers/OfferA/Skus/SkuA/Versions/4.0.20160812"
+	}]`
+)

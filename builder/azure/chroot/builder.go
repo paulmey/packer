@@ -30,6 +30,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 				"post_mount_commands",
 				"pre_mount_commands",
 				"mount_path",
+				"AzureClient",
 			},
 		},
 	}, raws...)
@@ -61,9 +62,10 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 			md.SubscriptionID))
 	}
 	b.config.SubscriptionID = md.SubscriptionID
+	b.config.location = md.Location
 
 	// Bail early if the creds are no good
-	err = b.config.ResolveClient()
+	azcli, err := b.config.GetClient()
 	if err != nil {
 		return warns, err
 	}
@@ -77,7 +79,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 			errs = packer.MultiErrorAppend(
 				errs, errors.New("source is required."))
 		}
-		if err := b.config.ResolveSource(); err != nil {
+		if err := b.config.ResolveSource(azcli); err != nil {
 			errs = packer.MultiErrorAppend(errs, err)
 		}
 	}

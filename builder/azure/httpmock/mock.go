@@ -26,7 +26,14 @@ func Get(uriRegex string, response interface{}) Mock {
 	return Mock{
 		http.MethodGet,
 		uriRegex,
-		NewMockSender(response)}
+		NewMockSender(200, response)}
+}
+
+func GetNotFound(uriRegex string, response interface{}) Mock {
+	return Mock{
+		http.MethodGet,
+		uriRegex,
+		NewMockSender(404, response)}
 }
 
 func (m Mock) Matches(req *http.Request) bool {
@@ -57,7 +64,7 @@ func (s *Sender) Do(req *http.Request) (*http.Response, error) {
 	return nil, errors.New("HTTP traffic not allowed in tests")
 }
 
-func NewMockSender(response interface{}) autorest.Sender {
+func NewMockSender(status int, response interface{}) autorest.Sender {
 	var data []byte
 	if d, ok := response.([]byte); ok {
 		data = d
@@ -74,8 +81,7 @@ func NewMockSender(response interface{}) autorest.Sender {
 	return autorest.SenderFunc(
 		func(req *http.Request) (*http.Response, error) {
 			resp := &http.Response{}
-			resp.StatusCode = 200
-			resp.Status = "200 OK"
+			resp.StatusCode = status
 			resp.Body = ioutil.NopCloser(bytes.NewReader(data))
 			resp.ContentLength = int64(len(data))
 			return resp, nil
