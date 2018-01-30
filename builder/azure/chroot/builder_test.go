@@ -42,7 +42,7 @@ func TestBuilderPrepare_WhenSourceThenFail(t *testing.T) {
 }
 
 func TestBuilderPrepare_WhenSourceUrnNotExistsThenFail(t *testing.T) {
-	image := "Canonical:UbuntuServer:16.04-LTS:LaTest"
+	image := "NotExists:UbuntuServer:16.04-LTS:LaTest"
 	config := testConfig()
 	config["source"] = image
 
@@ -130,7 +130,7 @@ func TestMain(m *testing.M) {
 							"subscriptionId": "125",
 							"displayName":    "Mocked Subscription",
 						}}}),
-			httpmock.GetNotFound("^https://management.azure.com/subscriptions/[^/]+/providers/Microsoft.Compute/locations/[^/]+/publishers/[^/]+/artifacttypes/vmimage/offers/[^/]+/skus/[^/]+/versions\\?",
+			httpmock.GetNotFound("^https://management.azure.com/subscriptions/[^/]+/providers/Microsoft.Compute/locations/[^/]+/publishers/NotExists/artifacttypes/vmimage/offers/[^/]+/skus/[^/]+/versions\\?",
 				response_image_not_found_error),
 		}}
 
