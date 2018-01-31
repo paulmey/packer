@@ -1,6 +1,7 @@
 package chroot
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -23,7 +24,9 @@ import (
 // }
 
 func testConfig() map[string]interface{} {
-	return map[string]interface{}{}
+	return map[string]interface{}{
+		"oauth_token": os.Getenv("PACKER_AZURE_OAUTH_TOKEN"),
+	}
 }
 
 type ConfigSourceSuite struct{}
@@ -32,11 +35,11 @@ var _ = chk.Suite(&ConfigSourceSuite{})
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { chk.TestingT(t) }
-func (s *ConfigSourceSuite) SetUpTest(c *chk.C) {
-	setRecorder(c)
-}
 
 func (s *ConfigSourceSuite) TestWhenNoSourceThenFail(c *chk.C) {
+	r := setRecorder(c)
+	defer r.Stop()
+
 	config := testConfig()
 	config["source"] = ""
 
@@ -47,12 +50,13 @@ func (s *ConfigSourceSuite) TestWhenNoSourceThenFail(c *chk.C) {
 	if len(warn) != 0 {
 		c.Log("Warnings: ", warn)
 	}
-	if err == nil {
-		c.Error("Expected Prepare to fail with empty source")
-	}
+	c.Assert(err, chk.ErrorMatches, "* source is required.")
 }
 
-func (s *ConfigSourceSuite) WhenSourceUrnNotExistsThenFail(t *testing.T) {
+func (s *ConfigSourceSuite) TestWhenSourceUrnNotExistsThenFail(c *chk.C) {
+	r := setRecorder(c)
+	defer r.Stop()
+
 	image := "NotExists:UbuntuServer:16.04-LTS:LaTest"
 	config := testConfig()
 	config["source"] = image
@@ -62,13 +66,10 @@ func (s *ConfigSourceSuite) WhenSourceUrnNotExistsThenFail(t *testing.T) {
 	warn, err := b.Prepare(config)
 
 	if len(warn) != 0 {
-		t.Log("Warnings: ", warn)
+		c.Log("Warnings: ", warn)
 	}
-	if err == nil ||
-		!strings.Contains(err.Error(), "Config: Image URN not found") ||
-		!strings.Contains(err.Error(), image) {
-		t.Errorf("Expected 'Config: Image URN not found' but got %q", err)
-	}
+	c.Assert(err, chk.ErrorMatches,
+		"Config: Image URN not found.*"+image)
 }
 
 // func (s *ConfigSourceSuite) MetadataShouldBeComplete(t *testing.T) {
@@ -136,9 +137,11 @@ const (
 func setRecorder(c *chk.C) *recorder.Recorder {
 	tests := strings.Split(c.TestName(), ".")
 	path := filepath.Join(recordingsFolder, tests[0], tests[1])
+	c.Logf("Recording in %s", path)
 
 	rec, err := recorder.New(path)
 	c.Assert(err, chk.IsNil)
+	c.Logf("Recorder: %+v", rec)
 	azcommon.Sender = autorest.SenderFunc(rec.RoundTrip)
 
 	// rec.SetMatcher(func(r *http.Request, i cassette.Request) bool {
