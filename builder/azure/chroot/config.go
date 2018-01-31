@@ -39,6 +39,7 @@ type Config struct {
 	// Disk source can be:
 	// - Blob uri to a vhd blob in the same location as the VM
 	// - Managed disk resource id
+	// - Managed disk snapshot resource id
 	// - Managed disk image resource id
 	// - Platform image urn (publisher:offer:sku:version)
 	Source string `mapstructure:"source"`
@@ -56,16 +57,14 @@ func (c *Config) ResolveSource(azcli azcommon.AzureClient) error {
 	if parts := strings.Split(s, ":"); len(parts) == 4 {
 		log.Printf("Config: source looks like an image URN")
 		if strings.ToLower(parts[3]) == "latest" {
-			// figure out what the latest version of the image is
-			// (until this is implemented in the APIs ???)
-			//	cli := c.DisksClient()
 			ctx := context.Background()
 			res, err := cli.List(ctx,
 				c.location,
 				parts[0], // publisherName
 				parts[1], // offer
 				parts[2], // sku
-				"", to.Int32Ptr(0), "Version")
+				// order by 'Version name' and take the top 1 hit, i.e. the latest image
+				"", to.Int32Ptr(1), "name desc")
 			if err != nil {
 				if res.StatusCode == 404 {
 					return fmt.Errorf("Config: Image URN not found: %s", s)
@@ -75,9 +74,16 @@ func (c *Config) ResolveSource(azcli azcommon.AzureClient) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			for _, v := range *res.Value {
-				log.Printf("Found candidate image: %+v", *v.ID)
+			if res.Value == nil || len(*res.Value) != 1 {
+				return fmt.Errorf("Config: expected to find one and only on image in array: %+v", *res.Value)
 			}
+			imageVersion := ((*res.Value)[0])
+			log.Printf("Found candidate image: %+v", imageVersion.ID)
+
+			c.sourceDisk.DiskProperties=&compute.DiskProperties{
+				CreationData: &compute.CreationData.CreateOptio
+
+
 		} else {
 			ctx := context.Background()
 			res, err := cli.Get(ctx,
@@ -85,7 +91,7 @@ func (c *Config) ResolveSource(azcli azcommon.AzureClient) error {
 				parts[0],
 				parts[1],
 				parts[2],
-				parts[2])
+				parts[3])
 			if err != nil {
 				return err
 			}
