@@ -42,28 +42,6 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	var errs *packer.MultiError
 	var warns []string
 
-	md, err := azcommon.GetComputeMetadata()
-	if err != nil {
-		return warns, fmt.Errorf("Error retrieving VM metadata (%q), "+
-			"is this an Azure VM?", err)
-	}
-	if md.SubscriptionID == "" ||
-		md.Name == "" ||
-		md.Location == "" ||
-		md.ResourceGroupName == "" {
-		return warns, fmt.Errorf("VM metadata is not complete (%+v), "+
-			"is this an Azure VM?", md)
-	}
-	if b.config.SubscriptionID != "" &&
-		b.config.SubscriptionID != md.SubscriptionID {
-		warns = append(warns, fmt.Sprintf("subscription_id (%s) is overridden "+
-			"with VM subscription id (%s)",
-			b.config.SubscriptionID,
-			md.SubscriptionID))
-	}
-	b.config.SubscriptionID = md.SubscriptionID
-	b.config.location = md.Location
-
 	// Bail early if the creds are no good
 	azcli, err := b.config.GetClient()
 	if err != nil {
@@ -94,8 +72,21 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 }
 
 func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packer.Artifact, error) {
-	panic("not implemented")
+	if runtime.GOOS != "linux" {
+		return nil, errors.New("The amazon-chroot builder only works on Linux environments.")
+	}
 
+	// Setup the state bag and initial state for the steps
+	state := new(multistep.BasicStateBag)
+	state.Put("config", &b.config)
+	state.Put("azcli", azcli)
+
+	// Build the steps
+	steps := []multistep.Step{
+		&StepInstanceInfo{},
+	}
+
+	panic("not implemented")
 }
 
 func (b *Builder) Cancel() {

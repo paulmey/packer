@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func GetComputeMetadata() (ComputeMetadata, error) {
+func (azureClient) GetComputeMetadata() (ComputeMetadata, error) {
 	rv := ComputeMetadata{}
 
 	req, err := http.NewRequest(http.MethodGet,

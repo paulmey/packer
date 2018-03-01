@@ -160,6 +160,7 @@ func (c *ClientConfig) getOAuthConfig(tenantID string) adal.OAuthConfig {
 }
 
 type AzureClient interface {
+	GetComputeMetadata() (ComputeMetadata, error)
 	SubscriptionsClient() subscriptions.Client
 	PlatformImagesClient() compute.VirtualMachineImagesClient
 	ManagedDisksClient() compute.DisksClient
