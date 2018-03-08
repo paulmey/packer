@@ -12,7 +12,8 @@ import (
 type StepInstanceInfo struct{}
 
 func (s *StepInstanceInfo) Run(state multistep.StateBag) multistep.StepAction {
-	azcli := state.Get("azcli").(*azcommon.AzureClient)
+	azcli := state.Get("azcli").(azcommon.AzureClient)
+	config := state.Get("config").(*Config)
 	ui := state.Get("ui").(packer.Ui)
 
 	md, err := azcli.GetComputeMetadata()
@@ -25,19 +26,19 @@ func (s *StepInstanceInfo) Run(state multistep.StateBag) multistep.StepAction {
 
 		err := fmt.Errorf(
 			"Error retrieving VM resource ID for the instance Packer is running on.\n" +
-				"Please verify Pakcer is running on an Azure VM")
+				"Please verify Packer is running on an Azure VM")
 		state.Put("error", err)
 		ui.Error(err.Error())
 		return multistep.ActionHalt
 	}
-	if b.config.SubscriptionID != "" &&
-		b.config.SubscriptionID != md.SubscriptionID {
-		warns = append(warns, fmt.Sprintf("subscription_id (%s) is overridden "+
+	if config.SubscriptionID != "" &&
+		config.SubscriptionID != md.SubscriptionID {
+		ui.Message(fmt.Sprintf("WARNING: subscription_id (%s) is overridden "+
 			"with VM subscription id (%s)",
-			b.config.SubscriptionID,
+			config.SubscriptionID,
 			md.SubscriptionID))
 	}
-	b.config.SubscriptionID = md.SubscriptionID
-	b.config.location = md.Location
-
+	config.SubscriptionID = md.SubscriptionID
+	config.location = md.Location
+	return multistep.ActionContinue
 }
