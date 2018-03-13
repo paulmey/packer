@@ -1,8 +1,10 @@
 package chroot
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/Azure/go-autorest/autorest"
 	azcommon "github.com/hashicorp/packer/builder/azure/common"
 	"github.com/hashicorp/packer/packer"
 	"github.com/mitchellh/multistep"
@@ -10,6 +12,10 @@ import (
 
 //StepInstanceInfo verifies that this builder is running on an Azure instance.
 type StepInstanceInfo struct{}
+
+var GetAuthorizer = func(*Config) (autorest.Authorizer, error) {
+	return nil, errors.New("Not implemented")
+}
 
 func (s *StepInstanceInfo) Run(state multistep.StateBag) multistep.StepAction {
 	azcli := state.Get("azcli").(azcommon.AzureClient)
@@ -31,14 +37,17 @@ func (s *StepInstanceInfo) Run(state multistep.StateBag) multistep.StepAction {
 		ui.Error(err.Error())
 		return multistep.ActionHalt
 	}
-	if config.SubscriptionID != "" &&
-		config.SubscriptionID != md.SubscriptionID {
-		ui.Message(fmt.Sprintf("WARNING: subscription_id (%s) is overridden "+
-			"with VM subscription id (%s)",
-			config.SubscriptionID,
-			md.SubscriptionID))
-	}
 	config.SubscriptionID = md.SubscriptionID
 	config.location = md.Location
+
+	authorizer, err := GetAuthorizer(config)
+	if err != nil {
+		wrappedErr := fmt.Errorf("Error retrieving credentials: %s", err)
+		state.Put("error", wrappedErr)
+		ui.Error(err.Error())
+		return multistep.ActionHalt
+	}
+	azcli.SetAuthorizer(authorizer)
+
 	return multistep.ActionContinue
 }

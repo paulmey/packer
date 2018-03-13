@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/oauth2/jws"
 	"strings"
+
+	"golang.org/x/oauth2/jws"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-03-30/compute"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -164,6 +165,8 @@ type AzureClient interface {
 	SubscriptionsClient() subscriptions.Client
 	PlatformImagesClient() compute.VirtualMachineImagesClient
 	ManagedDisksClient() compute.DisksClient
+
+	SetAuthorizer(autorest.Authorizer)
 }
 
 type azureClient struct {
@@ -191,4 +194,8 @@ func (c azureClient) ManagedDisksClient() compute.DisksClient {
 	cli.Client = c.Client
 	cli.Client.UserAgent = compute.UserAgent()
 	return cli
+}
+
+func (c azureClient) SetAuthorizer(authorizer autorest.Authorizer) {
+	c.Client.Authorizer = authorizer
 }
