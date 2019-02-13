@@ -104,7 +104,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 	if b.config.isManagedImage() {
 		group, err := azureClient.GroupsClient.Get(ctx, b.config.ManagedImageResourceGroupName)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot locate the managed image resource group %s.", b.config.ManagedImageResourceGroupName)
+			return nil, fmt.Errorf("Cannot locate the managed image resource group %s: %v", b.config.ManagedImageResourceGroupName, err)
 		}
 
 		b.config.manageImageLocation = *group.Location

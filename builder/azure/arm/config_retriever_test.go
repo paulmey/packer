@@ -9,6 +9,8 @@ import (
 
 func TestConfigRetrieverFillsTenantIDWhenEmpty(t *testing.T) {
 	c, _, _ := newConfig(getArmBuilderConfiguration(), getPackerConfiguration())
+	c.SubscriptionID = "needs-to-be-set-to-retrieve-tenantID"
+
 	if expected := ""; c.TenantID != expected {
 		t.Errorf("Expected TenantID to be %q but got %q", expected, c.TenantID)
 	}
@@ -27,6 +29,8 @@ func TestConfigRetrieverFillsTenantIDWhenEmpty(t *testing.T) {
 
 func TestConfigRetrieverLeavesTenantIDWhenNotEmpty(t *testing.T) {
 	c, _, _ := newConfig(getArmBuilderConfiguration(), getPackerConfiguration())
+	c.SubscriptionID = "needs-to-be-set-to-retrieve-tenantID"
+
 	userSpecifiedTid := "not-empty"
 	c.TenantID = userSpecifiedTid
 
@@ -43,6 +47,8 @@ func TestConfigRetrieverLeavesTenantIDWhenNotEmpty(t *testing.T) {
 
 func TestConfigRetrieverReturnsErrorWhenTenantIDEmptyAndRetrievalFails(t *testing.T) {
 	c, _, _ := newConfig(getArmBuilderConfiguration(), getPackerConfiguration())
+	c.SubscriptionID = "needs-to-be-set-to-retrieve-tenantID"
+
 	if expected := ""; c.TenantID != expected {
 		t.Errorf("Expected TenantID to be %q but got %q", expected, c.TenantID)
 	}

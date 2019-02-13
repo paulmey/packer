@@ -2,6 +2,7 @@ package arm
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/hashicorp/packer/builder/azure/common/metadata"
 	"github.com/hashicorp/packer/packer"
 )
 
@@ -167,7 +169,7 @@ func (c ClientConfig) useMSI() bool {
 		c.TenantID == ""
 }
 
-func (c ClientConfig) getServicePrincipalTokens(
+func (c *ClientConfig) getServicePrincipalTokens(
 	say func(string)) (
 	servicePrincipalToken *adal.ServicePrincipalToken,
 	servicePrincipalTokenVault *adal.ServicePrincipalToken,
@@ -183,6 +185,15 @@ func (c ClientConfig) getServicePrincipalTokens(
 	} else if c.useMSI() {
 		say("Getting tokens using Managed Identity for Azure")
 		auth = NewMSIOAuthTokenProvider(*c.cloudEnvironment)
+		if c.SubscriptionID == "" {
+			log.Print("Getting subscription ID from metadata service")
+			md, err := metadata.Get()
+			if err != nil {
+				return nil, nil, fmt.Errorf("Error retieving subscription ID:", err)
+			}
+			c.SubscriptionID = md.ComputeInfo.SubscriptionID
+			log.Printf("Subscription ID: %s", c.SubscriptionID)
+		}
 	} else if c.ClientSecret != "" {
 		say("Getting tokens using client secret")
 		auth = NewSecretOAuthTokenProvider(*c.cloudEnvironment, c.ClientID, c.ClientSecret, tenantID)
