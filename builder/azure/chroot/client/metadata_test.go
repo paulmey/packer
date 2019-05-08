@@ -1,4 +1,4 @@
-package chroot
+package client
 
 import (
 	"testing"
@@ -20,5 +20,7 @@ func Test_MetadataReturnsVMResourceID(t *testing.T) {
 
 	vm, err := azure.ParseResourceID(id)
 	assert.Nil(t, err, "%q is not parsable as an Azure resource id", id)
+
+	assert.Regexp(t, "^[0-9a-fA-F-]{36}$", vm.SubscriptionID)
 	t.Logf("VM: %+v", vm)
 }
