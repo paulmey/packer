@@ -24,6 +24,7 @@ require (
 	github.com/creack/goselect v0.1.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/digitalocean/godo v1.11.1
+	github.com/dimchansky/utfbom v1.1.0 // indirect
 	github.com/dnaeon/go-vcr v1.0.0 // indirect
 	github.com/docker/docker v0.0.0-20180422163414-57142e89befe // indirect
 	github.com/dylanmei/iso8601 v0.1.0 // indirect
@@ -99,7 +100,8 @@ require (
 	github.com/ryanuber/go-glob v0.0.0-20170128012129-256dc444b735 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/scaleway/scaleway-cli v0.0.0-20180921094345-7b12c9699d70
-	github.com/seborama/govcr v3.0.1+incompatible // indirect
+	github.com/seborama/govcr v3.0.1+incompatible
+	github.com/sirupsen/logrus v1.2.0
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
 	github.com/smartystreets/goconvey v0.0.0-20181108003508-044398e4856c // indirect
 	github.com/stretchr/testify v1.3.0
