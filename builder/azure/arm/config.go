@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/masterzen/winrm"
 
+	azcommon "github.com/hashicorp/packer/builder/azure/common"
 	"github.com/hashicorp/packer/builder/azure/common/constants"
 	"github.com/hashicorp/packer/builder/azure/pkcs12"
 	"github.com/hashicorp/packer/common"
@@ -268,7 +269,7 @@ func (c *Config) createCertificate() (string, error) {
 
 func newConfig(raws ...interface{}) (*Config, []string, error) {
 	var c Config
-	c.ctx.Funcs = TemplateFuncs
+	c.ctx.Funcs = azcommon.TemplateFuncs
 	err := config.Decode(&c, &config.DecodeOpts{
 		Interpolate:        true,
 		InterpolateContext: &c.ctx,
