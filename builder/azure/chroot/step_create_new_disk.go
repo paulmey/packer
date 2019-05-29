@@ -52,7 +52,7 @@ func (s StepCreateNewDisk) Run(ctx context.Context, state multistep.StateBag) mu
 	if err != nil {
 		log.Printf("StepCreateNewDisk.Run: error: %+v", err)
 		err := fmt.Errorf(
-			"Error creating new disk '%s': %v.", diskResourceID, err)
+			"error creating new disk '%s': %v", diskResourceID, err)
 		state.Put("error", err)
 		ui.Error(err.Error())
 		return multistep.ActionHalt
