@@ -15,9 +15,9 @@ import (
 var _ multistep.Step = &StepCreateNewDisk{}
 
 type StepCreateNewDisk struct {
-	ResourceGroup, DiskName string
-	DiskSizeGB              int32
-	DiskStorageAccountType  string // from compute.DiskStorageAccountTypes
+	SubscriptionID, ResourceGroup, DiskName string
+	DiskSizeGB                              int32
+	DiskStorageAccountType                  string // from compute.DiskStorageAccountTypes
 }
 
 func (s StepCreateNewDisk) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
@@ -25,7 +25,7 @@ func (s StepCreateNewDisk) Run(ctx context.Context, state multistep.StateBag) mu
 	ui := state.Get("ui").(packer.Ui)
 
 	diskResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/disks/%s",
-		azcli.Subcription(),
+		s.SubscriptionID,
 		s.ResourceGroup,
 		s.DiskName)
 	ui.Say(fmt.Sprintf("Creating disk '%s'", diskResourceID))
@@ -39,15 +39,15 @@ func (s StepCreateNewDisk) Run(ctx context.Context, state multistep.StateBag) mu
 			OsType:           "",
 			HyperVGeneration: "",
 			CreationData: &compute.CreationData{
-				CreateOption: DiskCreateOption,
+				CreateOption: compute.Empty,
 			},
 			DiskSizeGB: to.Int32Ptr(s.DiskSizeGB),
 		},
 		//Tags: map[string]*string{
 	}
-	f, err := azcli.DisksClient().CreateOrUpdate(ctx, r.ResourceGroup, s.DiskName, disk)
+	f, err := azcli.DisksClient().CreateOrUpdate(ctx, s.ResourceGroup, s.DiskName, disk)
 	if err == nil {
-		err = f.WaitForCompletion(azcli.PollClient())
+		err = f.WaitForCompletionRef(ctx, azcli.PollClient())
 	}
 	if err != nil {
 		log.Printf("StepCreateNewDisk.Run: error: %+v", err)
@@ -66,14 +66,14 @@ func (s StepCreateNewDisk) Cleanup(state multistep.StateBag) {
 	ui := state.Get("ui").(packer.Ui)
 
 	diskResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/disks/%s",
-		azcli.Subcription(),
+		s.SubscriptionID,
 		s.ResourceGroup,
 		s.DiskName)
 	ui.Say(fmt.Sprintf("Deleting disk '%s'", diskResourceID))
 
-	f, err := azcli.DisksClient().Delete(ctx, r.ResourceGroup, s.DiskName)
+	f, err := azcli.DisksClient().Delete(context.TODO(), s.ResourceGroup, s.DiskName)
 	if err == nil {
-		err = f.WaitForCompletion(azcli.PollClient())
+		err = f.WaitForCompletionRef(context.TODO(), azcli.PollClient())
 	}
 	if err != nil {
 		log.Printf("StepCreateNewDisk.Cleanup: error: %+v", err)

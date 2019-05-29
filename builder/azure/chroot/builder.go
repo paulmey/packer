@@ -124,6 +124,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	} else {
 		steps = append(steps,
 			&StepCreateNewDisk{
+				SubscriptionID:         info.SubscriptionID,
 				ResourceGroup:          info.ResourceGroupName,
 				DiskName:               osDiskName,
 				DiskSizeGB:             b.config.OSDiskSizeGB,
