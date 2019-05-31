@@ -61,6 +61,7 @@ func (s *StepAttachDisk) CleanupFunc(state multistep.StateBag) error {
 	da := NewDiskAttacher(azcli)
 	err := da.DetachDisk(context.Background(), diskResourceID)
 	if err != nil {
-		ui.Error(fmt.Sprintf("error detaching %q: %v", diskResourceID, err))
+		return fmt.Errorf("error detaching %q: %v", diskResourceID, err)
 	}
+	return nil
 }
