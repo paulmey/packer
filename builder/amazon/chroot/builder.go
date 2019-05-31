@@ -283,7 +283,9 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		&StepPostMountCommands{
 			Commands: b.config.PostMountCommands,
 		},
-		&StepMountExtra{},
+		&StepMountExtra{
+			ChrootMounts: b.config.ChrootMounts,
+		},
 		&StepCopyFiles{},
 		&StepChrootProvision{},
 		&StepEarlyCleanup{},
