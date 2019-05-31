@@ -13,6 +13,7 @@ type AzureClientSet interface {
 	MetadataClient() MetadataClientAPI
 
 	DisksClient() computeapi.DisksClientAPI
+	ImagesClient() computeapi.ImagesClientAPI
 	VirtualMachinesClient() computeapi.VirtualMachinesClientAPI
 
 	PollClient() autorest.Client
@@ -20,11 +21,13 @@ type AzureClientSet interface {
 
 var subscriptionPathRegex = regexp.MustCompile(`/subscriptions/([[:xdigit:]]{8}(-[[:xdigit:]]{4}){3}-[[:xdigit:]]{12})`)
 
+var _ AzureClientSet = &azureClientSet{}
+
 type azureClientSet struct {
 	sender         autorest.Sender
 	authorizer     autorest.Authorizer
 	subscriptionID string
-	PollingDelay time.Duration
+	PollingDelay   time.Duration
 }
 
 func (s azureClientSet) configureAutorestClient(c *autorest.Client) {
@@ -45,6 +48,13 @@ func (s azureClientSet) MetadataClient() MetadataClientAPI {
 
 func (s azureClientSet) DisksClient() computeapi.DisksClientAPI {
 	c := compute.NewDisksClient(s.subscriptionID)
+	s.configureAutorestClient(&c.Client)
+	c.PollingDelay = s.PollingDelay
+	return c
+}
+
+func (s azureClientSet) ImagesClient() computeapi.ImagesClientAPI {
+	c := compute.NewImagesClient(s.subscriptionID)
 	s.configureAutorestClient(&c.Client)
 	c.PollingDelay = s.PollingDelay
 	return c
