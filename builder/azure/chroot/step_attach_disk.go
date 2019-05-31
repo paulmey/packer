@@ -3,7 +3,7 @@ package chroot
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/packer/builder/azure/chroot/client"
+	"github.com/hashicorp/packer/builder/azure/common/client"
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"log"

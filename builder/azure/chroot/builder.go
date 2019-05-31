@@ -9,8 +9,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
 	"github.com/hashicorp/packer/builder/amazon/chroot"
-	"github.com/hashicorp/packer/builder/azure/chroot/client"
 	azcommon "github.com/hashicorp/packer/builder/azure/common"
+	"github.com/hashicorp/packer/builder/azure/common/client"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/config"
 	"github.com/hashicorp/packer/helper/multistep"

@@ -7,7 +7,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/hashicorp/packer/builder/azure/chroot/client"
+	"github.com/hashicorp/packer/builder/azure/common/client"
 	"os"
 	"path/filepath"
 	"strings"

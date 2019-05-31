@@ -19,6 +19,7 @@ import (
 	"github.com/masterzen/winrm"
 
 	azcommon "github.com/hashicorp/packer/builder/azure/common"
+	"github.com/hashicorp/packer/builder/azure/common/client"
 	"github.com/hashicorp/packer/builder/azure/common/constants"
 	"github.com/hashicorp/packer/builder/azure/pkcs12"
 	"github.com/hashicorp/packer/common"
@@ -78,7 +79,7 @@ type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
 	// Authentication via OAUTH
-	ClientConfig `mapstructure:",squash"`
+	client.ClientConfig `mapstructure:",squash"`
 
 	// Capture
 	CaptureNamePrefix    string `mapstructure:"capture_name_prefix"`
