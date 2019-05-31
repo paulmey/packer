@@ -167,6 +167,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			Files: b.config.CopyFiles,
 		},
 		&chroot.StepChrootProvision{},
+		&chroot.StepEarlyCleanup{},
 	)
 
 	// Run!

@@ -44,10 +44,18 @@ func (s StepAttachDisk) Run(ctx context.Context, state multistep.StateBag) multi
 
 	ui.Say(fmt.Sprintf("Disk available at %q", device))
 	state.Put("device", device)
+	state.Put("attach_cleanup", s)
 	return multistep.ActionContinue
 }
 
 func (s StepAttachDisk) Cleanup(state multistep.StateBag) {
+	ui := state.Get("ui").(packer.Ui)
+	if err := s.CleanupFunc(state); err != nil {
+		ui.Error(err.Error())
+	}
+}
+
+func (s *StepAttachDisk) CleanupFunc(state multistep.StateBag) error {
 	azcli := state.Get("azureclient").(client.AzureClientSet)
 	ui := state.Get("ui").(packer.Ui)
 
