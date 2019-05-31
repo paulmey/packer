@@ -1,7 +1,8 @@
-package arm
+package client
 
 import (
 	"fmt"
+	"github.com/hashicorp/packer/builder/azure/common"
 	"os"
 	"strings"
 	"time"
@@ -12,12 +13,12 @@ import (
 	"github.com/hashicorp/packer/packer"
 )
 
-// ClientConfig allows for various ways to authenticate Azure clients
-type ClientConfig struct {
+// Config allows for various ways to authenticate Azure clients
+type Config struct {
 	// Describes where API's are
 
 	CloudEnvironmentName string `mapstructure:"cloud_environment_name"`
-	cloudEnvironment     *azure.Environment
+	CloudEnvironment     *azure.Environment
 
 	// Authentication fields
 
@@ -32,17 +33,28 @@ type ClientConfig struct {
 	ObjectID       string `mapstructure:"object_id"`
 	TenantID       string `mapstructure:"tenant_id"`
 	SubscriptionID string `mapstructure:"subscription_id"`
+
+	authType string
 }
+
+const (
+	authTypeDeviceLogin     = "DeviceLogin"
+	authTypeMSI             = "ManagedIdentity"
+	authTypeClientSecret    = "ClientSecret"
+	authTypeClientCert      = "ClientCertificate"
+	authTypeClientBearerJWT = "ClientBearerJWT"
+)
 
 const DefaultCloudEnvironmentName = "Public"
 
-func (c *ClientConfig) provideDefaultValues() {
+func (c *Config) SetDefaultValues() error {
 	if c.CloudEnvironmentName == "" {
 		c.CloudEnvironmentName = DefaultCloudEnvironmentName
 	}
+	return c.setCloudEnvironment()
 }
 
-func (c *ClientConfig) setCloudEnvironment() error {
+func (c *Config) setCloudEnvironment() error {
 	lookup := map[string]string{
 		"CHINA":           "AzureChinaCloud",
 		"CHINACLOUD":      "AzureChinaCloud",
@@ -72,11 +84,11 @@ func (c *ClientConfig) setCloudEnvironment() error {
 	}
 
 	env, err := azure.EnvironmentFromName(envName)
-	c.cloudEnvironment = &env
+	c.CloudEnvironment = &env
 	return err
 }
 
-func (c ClientConfig) assertRequiredParametersSet(errs *packer.MultiError) {
+func (c Config) Validate(errs *packer.MultiError) {
 	/////////////////////////////////////////////
 	// Authentication via OAUTH
 
@@ -89,7 +101,7 @@ func (c ClientConfig) assertRequiredParametersSet(errs *packer.MultiError) {
 	// readable by the ObjectID of the App.  There may be another way to handle
 	// this case, but I am not currently aware of it - send feedback.
 
-	if c.useMSI() {
+	if c.UseMSI() {
 		return
 	}
 
@@ -150,7 +162,7 @@ func (c ClientConfig) assertRequiredParametersSet(errs *packer.MultiError) {
 		"  - subscription_id, client_id and client_jwt."))
 }
 
-func (c ClientConfig) useDeviceLogin() bool {
+func (c Config) useDeviceLogin() bool {
 	return c.SubscriptionID != "" &&
 		c.ClientID == "" &&
 		c.ClientSecret == "" &&
@@ -158,7 +170,7 @@ func (c ClientConfig) useDeviceLogin() bool {
 		c.ClientCertPath == ""
 }
 
-func (c ClientConfig) useMSI() bool {
+func (c Config) UseMSI() bool {
 	return c.SubscriptionID == "" &&
 		c.ClientID == "" &&
 		c.ClientSecret == "" &&
@@ -167,7 +179,7 @@ func (c ClientConfig) useMSI() bool {
 		c.TenantID == ""
 }
 
-func (c ClientConfig) getServicePrincipalTokens(
+func (c Config) GetServicePrincipalTokens(
 	say func(string)) (
 	servicePrincipalToken *adal.ServicePrincipalToken,
 	servicePrincipalTokenVault *adal.ServicePrincipalToken,
@@ -176,25 +188,27 @@ func (c ClientConfig) getServicePrincipalTokens(
 	tenantID := c.TenantID
 
 	var auth oAuthTokenProvider
-
-	if c.useDeviceLogin() {
+	switch c.authType {
+	case authTypeDeviceLogin:
 		say("Getting tokens using device flow")
-		auth = NewDeviceFlowOAuthTokenProvider(*c.cloudEnvironment, say, tenantID)
-	} else if c.useMSI() {
+		auth = NewDeviceFlowOAuthTokenProvider(*c.CloudEnvironment, say, tenantID)
+	case authTypeMSI:
 		say("Getting tokens using Managed Identity for Azure")
-		auth = NewMSIOAuthTokenProvider(*c.cloudEnvironment)
-	} else if c.ClientSecret != "" {
+		auth = NewMSIOAuthTokenProvider(*c.CloudEnvironment)
+	case authTypeClientSecret:
 		say("Getting tokens using client secret")
-		auth = NewSecretOAuthTokenProvider(*c.cloudEnvironment, c.ClientID, c.ClientSecret, tenantID)
-	} else if c.ClientCertPath != "" {
+		auth = NewSecretOAuthTokenProvider(*c.CloudEnvironment, c.ClientID, c.ClientSecret, tenantID)
+	case authTypeClientCert:
 		say("Getting tokens using client certificate")
-		auth, err = NewCertOAuthTokenProvider(*c.cloudEnvironment, c.ClientID, c.ClientCertPath, tenantID)
+		auth, err = NewCertOAuthTokenProvider(*c.CloudEnvironment, c.ClientID, c.ClientCertPath, tenantID)
 		if err != nil {
 			return nil, nil, err
 		}
-	} else {
+	case authTypeClientBearerJWT:
 		say("Getting tokens using client bearer JWT")
-		auth = NewJWTOAuthTokenProvider(*c.cloudEnvironment, c.ClientID, c.ClientJWT, tenantID)
+		auth = NewJWTOAuthTokenProvider(*c.CloudEnvironment, c.ClientID, c.ClientJWT, tenantID)
+	default:
+		panic("authType not set, call FillParameters, or set explicitly")
 	}
 
 	servicePrincipalToken, err = auth.getServicePrincipalToken()
@@ -208,7 +222,7 @@ func (c ClientConfig) getServicePrincipalTokens(
 	}
 
 	servicePrincipalTokenVault, err = auth.getServicePrincipalTokenWithResource(
-		strings.TrimRight(c.cloudEnvironment.KeyVaultEndpoint, "/"))
+		strings.TrimRight(c.CloudEnvironment.KeyVaultEndpoint, "/"))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,4 +233,46 @@ func (c ClientConfig) getServicePrincipalTokens(
 	}
 
 	return servicePrincipalToken, servicePrincipalTokenVault, nil
+}
+
+func (c *Config) FillParameters() error {
+	if c.authType == "" {
+		if c.useDeviceLogin() {
+			c.authType = authTypeDeviceLogin
+		} else if c.UseMSI() {
+			c.authType = authTypeMSI
+		} else if c.ClientSecret != "" {
+			c.authType = authTypeClientSecret
+		} else if c.ClientCertPath != "" {
+			c.authType = authTypeClientCert
+		} else {
+			c.authType = authTypeClientBearerJWT
+		}
+	}
+
+	if c.authType == authTypeMSI && c.SubscriptionID == "" {
+
+		subscriptionID, err := getSubscriptionFromIMDS()
+		if err != nil {
+			return fmt.Errorf("error fetching subscriptionID from VM metadata service for Managed Identity authentication: %v", err)
+		}
+		c.SubscriptionID = subscriptionID
+	}
+
+	if c.TenantID == "" {
+		tenantID, err := common.FindTenantID(*c.CloudEnvironment, c.SubscriptionID)
+		if err != nil {
+			return err
+		}
+		c.TenantID = tenantID
+	}
+
+	if c.CloudEnvironment == nil {
+		err := c.setCloudEnvironment()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
