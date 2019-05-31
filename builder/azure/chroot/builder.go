@@ -91,7 +91,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	}
 
 	if b.config.MountPath == "" {
-		b.config.MountPath = "/mnt/packer-amazon-chroot-volumes/{{.Device}}"
+		b.config.MountPath = "/mnt/packer-azure-chroot-disks/{{.Device}}"
 	}
 
 	if b.config.MountPartition == "" {
@@ -121,10 +121,55 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		}
 	}
 
+	//	OsState: compute.OperatingSystemStateTypes(s.ImageOSState),
+	//	StorageAccountType: compute.StorageAccountTypes(s.OSDiskStorageAccountType),
+
+	if err := checkOSState(b.config.ImageOSState); err != nil {
+		errs = packer.MultiErrorAppend(errs, fmt.Errorf("image_os_state: %v", err))
+	}
+	if err := checkDiskCacheType(b.config.OSDiskCacheType); err != nil {
+		errs = packer.MultiErrorAppend(errs, fmt.Errorf("os_disk_cache_type: %v", err))
+	}
+	if err := checkStorageAccountType(b.config.OSDiskStorageAccountType); err != nil {
+		errs = packer.MultiErrorAppend(errs, fmt.Errorf("os_disk_storage_account_type: %v", err))
+	}
+
 	if err != nil {
 		return nil, err
 	}
+
+	packer.LogSecretFilter.Set(b.config.AccessKey, b.config.SecretKey, b.config.Token)
 	return warns, errs
+}
+
+func checkOSState(s string) interface{} {
+	for _, v := range compute.PossibleOperatingSystemStateTypesValues() {
+		if compute.OperatingSystemStateTypes(s) == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("%q is not a valid value (%v)",
+		s, compute.PossibleOperatingSystemStateTypesValues())
+}
+
+func checkDiskCacheType(s string) interface{} {
+	for _, v := range compute.PossibleCachingTypesValues() {
+		if compute.CachingTypes(s) == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("%q is not a valid value (%v)",
+		s, compute.PossibleCachingTypesValues())
+}
+
+func checkStorageAccountType(s string) interface{} {
+	for _, v := range compute.PossibleStorageAccountTypesValues() {
+		if compute.StorageAccountTypes(s) == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("%q is not a valid value (%v)",
+		s, compute.PossibleStorageAccountTypesValues())
 }
 
 func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
