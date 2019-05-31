@@ -28,6 +28,7 @@ func (s StepCreateNewDisk) Run(ctx context.Context, state multistep.StateBag) mu
 		s.SubscriptionID,
 		s.ResourceGroup,
 		s.DiskName)
+	state.Put("os_disk_resource_id", diskResourceID)
 	ui.Say(fmt.Sprintf("Creating disk '%s'", diskResourceID))
 
 	disk := compute.Disk{

@@ -144,11 +144,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	}
 
 	steps = append(steps,
-		&StepAttachDisk{ // sets 'device' in stateBag
-			SubscriptionID: info.SubscriptionID,
-			ResourceGroup:  info.ResourceGroupName,
-			DiskName:       osDiskName,
-		},
+		&StepAttachDisk{}, // uses os_disk_resource_id and sets 'device' in stateBag
 		&chroot.StepPreMountCommands{
 			Commands: b.config.PreMountCommands,
 		},
