@@ -79,7 +79,7 @@ type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
 	// Authentication via OAUTH
-	client.ClientConfig `mapstructure:",squash"`
+	ClientConfig client.Config `mapstructure:",squash"`
 
 	// Capture
 	CaptureNamePrefix    string `mapstructure:"capture_name_prefix"`
@@ -178,7 +178,7 @@ func (c *Config) toVMID() string {
 	} else {
 		resourceGroupName = c.BuildResourceGroupName
 	}
-	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s", c.SubscriptionID, resourceGroupName, c.tmpComputeName)
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s", c.ClientConfig.SubscriptionID, resourceGroupName, c.tmpComputeName)
 }
 
 func (c *Config) isManagedImage() bool {
@@ -283,7 +283,7 @@ func newConfig(raws ...interface{}) (*Config, []string, error) {
 	provideDefaultValues(&c)
 	setRuntimeValues(&c)
 	setUserNamePassword(&c)
-	err = c.ClientConfig.setCloudEnvironment()
+	err = c.ClientConfig.SetDefaultValues()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -443,7 +443,7 @@ func provideDefaultValues(c *Config) {
 		c.ImageVersion = DefaultImageVersion
 	}
 
-	c.provideDefaultValues()
+	c.ClientConfig.SetDefaultValues()
 }
 
 func assertTagProperties(c *Config, errs *packer.MultiError) {
@@ -462,7 +462,7 @@ func assertTagProperties(c *Config, errs *packer.MultiError) {
 }
 
 func assertRequiredParametersSet(c *Config, errs *packer.MultiError) {
-	c.ClientConfig.assertRequiredParametersSet(errs)
+	c.ClientConfig.Validate(errs)
 
 	/////////////////////////////////////////////
 	// Capture

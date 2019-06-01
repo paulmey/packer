@@ -57,13 +57,10 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// User's intent to use MSI is indicated with empty subscription id, tenant, client id, client cert, client secret and jwt.
-	// FillParameters function will set subscription and tenant id here. Therefore getServicePrincipalTokens won't select right auth type.
-	// If we run this after getServicePrincipalTokens call then getServicePrincipalTokens won't have tenant id.
-	if !b.config.useMSI() {
-		if err := newConfigRetriever().FillParameters(b.config); err != nil {
-			return nil, err
-		}
+	// FillParameters function will set the authType from supplied parameters set the subscription and tenant id.
+	err := b.config.ClientConfig.FillParameters()
+	if err != nil {
+		return nil, err
 	}
 
 	log.Print(":: Configuration")
@@ -77,19 +74,12 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		return nil, err
 	}
 
-	// We need subscription id and tenant id for arm operations. Users hasn't specified one so we try to detect them here.
-	if b.config.useMSI() {
-		if err := newConfigRetriever().FillParameters(b.config); err != nil {
-			return nil, err
-		}
-	}
-
 	ui.Message("Creating Azure Resource Manager (ARM) client ...")
 	azureClient, err := NewAzureClient(
-		b.config.SubscriptionID,
+		b.config.ClientConfig.SubscriptionID,
 		b.config.ResourceGroupName,
 		b.config.StorageAccount,
-		b.config.cloudEnvironment,
+		b.config.ClientConfig.CloudEnvironment,
 		spnCloud,
 		spnKeyVault)
 
@@ -101,13 +91,13 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	if err := resolver.Resolve(b.config); err != nil {
 		return nil, err
 	}
-	if b.config.ObjectID == "" {
-		b.config.ObjectID = getObjectIdFromToken(ui, spnCloud)
+	if b.config.ClientConfig.ObjectID == "" {
+		b.config.ClientConfig.ObjectID = getObjectIdFromToken(ui, spnCloud)
 	} else {
 		ui.Message("You have provided Object_ID which is no longer needed, azure packer builder determines this dynamically from the authentication token")
 	}
 
-	if b.config.ObjectID == "" && b.config.OSType != constants.Target_Linux {
+	if b.config.ClientConfig.ObjectID == "" && b.config.OSType != constants.Target_Linux {
 		return nil, fmt.Errorf("could not determine the ObjectID for the user, which is required for Windows builds")
 	}
 
@@ -274,7 +264,8 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	}
 
 	if b.config.isManagedImage() {
-		managedImageID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s", b.config.SubscriptionID, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName)
+		managedImageID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s",
+			b.config.ClientConfig.SubscriptionID, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName)
 		return NewManagedImageArtifact(b.config.OSType, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName, b.config.manageImageLocation, managedImageID, b.config.ManagedImageOSDiskSnapshotName, b.config.ManagedImageDataDiskSnapshotPrefix)
 	} else if template, ok := b.stateBag.GetOk(constants.ArmCaptureTemplate); ok {
 		return NewArtifact(
@@ -386,7 +377,7 @@ func (b *Builder) setImageParameters(stateBag multistep.StateBag) {
 }
 
 func (b *Builder) getServicePrincipalTokens(say func(string)) (*adal.ServicePrincipalToken, *adal.ServicePrincipalToken, error) {
-	return b.config.ClientConfig.getServicePrincipalTokens(say)
+	return b.config.ClientConfig.GetServicePrincipalTokens(say)
 }
 
 func getObjectIdFromToken(ui packer.Ui, token *adal.ServicePrincipalToken) string {
