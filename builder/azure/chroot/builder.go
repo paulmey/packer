@@ -21,6 +21,8 @@ import (
 type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
+	ClientConfig client.Config `mapstructure:",squash"`
+
 	FromScratch bool `mapstructure:"from_scratch"`
 
 	CommandWrapper    string     `mapstructure:"command_wrapper"`
@@ -65,6 +67,11 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	}, raws...)
 
 	// Defaults
+	err = b.config.ClientConfig.SetDefaultValues()
+	if err != nil {
+		return nil, err
+	}
+
 	if b.config.ChrootMounts == nil {
 		b.config.ChrootMounts = make([][]string, 0)
 	}
@@ -106,6 +113,11 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		b.config.OSDiskCacheType = string(compute.CachingTypesReadOnly)
 	}
 
+	if b.config.ImageOSState == "" {
+		b.config.ImageOSState = string(compute.Generalized)
+
+	}
+
 	// checks, accumulate any errors or warnings
 	var errs *packer.MultiError
 	var warns []string
@@ -113,16 +125,15 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	if b.config.FromScratch {
 		if b.config.OSDiskSizeGB == 0 {
 			errs = packer.MultiErrorAppend(
-				errs, errors.New("osdisk_size_gb is required with from_scratch"))
+				errs, errors.New("os_disk_size_gb is required with from_scratch"))
 		}
 		if len(b.config.PreMountCommands) == 0 {
 			errs = packer.MultiErrorAppend(
 				errs, errors.New("pre_mount_commands is required with from_scratch"))
 		}
+	} else {
+		errs = packer.MultiErrorAppend(errors.New("only 'from_scratch'=true is supported right now"))
 	}
-
-	//	OsState: compute.OperatingSystemStateTypes(s.ImageOSState),
-	//	StorageAccountType: compute.StorageAccountTypes(s.OSDiskStorageAccountType),
 
 	if err := checkOSState(b.config.ImageOSState); err != nil {
 		errs = packer.MultiErrorAppend(errs, fmt.Errorf("image_os_state: %v", err))
@@ -134,12 +145,12 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		errs = packer.MultiErrorAppend(errs, fmt.Errorf("os_disk_storage_account_type: %v", err))
 	}
 
-	if err != nil {
-		return nil, err
+	if errs != nil {
+		return warns, errs
 	}
 
-	packer.LogSecretFilter.Set(b.config.AccessKey, b.config.SecretKey, b.config.Token)
-	return warns, errs
+	packer.LogSecretFilter.Set(b.config.ClientConfig.ClientSecret, b.config.ClientConfig.ClientJWT)
+	return warns, nil
 }
 
 func checkOSState(s string) interface{} {
@@ -177,8 +188,11 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		return nil, errors.New("the azure-chroot builder only works on Linux environments")
 	}
 
-	// todo: instantiate Azure client
-	var azcli client.AzureClientSet
+	b.config.ClientConfig.FillParameters()
+	azcli, err := client.New(b.config.ClientConfig, ui.Say)
+	if err != nil {
+		return nil, fmt.Errorf("error creating Azure client: %v", err)
+	}
 
 	wrappedCommand := func(command string) (string, error) {
 		ictx := b.config.ctx

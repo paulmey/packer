@@ -1,6 +1,7 @@
 package client
 
 import (
+	"net/http"
 	"regexp"
 	"time"
 
@@ -30,6 +31,18 @@ type azureClientSet struct {
 	PollingDelay   time.Duration
 }
 
+func New(c Config, say func(string)) (AzureClientSet, error) {
+	token, err := c.GetServicePrincipalToken(say, c.CloudEnvironment.ResourceManagerEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	return &azureClientSet{
+		authorizer:     autorest.NewBearerAuthorizer(token),
+		subscriptionID: c.SubscriptionID,
+		sender:         http.DefaultClient,
+	}, nil
+}
+
 func (s azureClientSet) configureAutorestClient(c *autorest.Client) {
 	c.Authorizer = s.authorizer
 	c.Sender = s.sender
@@ -41,9 +54,7 @@ func (s azureClientSet) configureAutorestClient(c *autorest.Client) {
 }
 
 func (s azureClientSet) MetadataClient() MetadataClientAPI {
-	return metadataClient{
-		Sender: s.sender,
-	}
+	return metadataClient{s.sender}
 }
 
 func (s azureClientSet) DisksClient() computeapi.DisksClientAPI {
