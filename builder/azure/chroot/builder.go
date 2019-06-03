@@ -249,7 +249,10 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		return nil, errors.New("the azure-chroot builder only works on Linux environments")
 	}
 
-	b.config.ClientConfig.FillParameters()
+	err := b.config.ClientConfig.FillParameters()
+	if err != nil {
+		return nil, fmt.Errorf("error setting Azure client defaults: %v", err)
+	}
 	azcli, err := client.New(b.config.ClientConfig, ui.Say)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Azure client: %v", err)
@@ -281,12 +284,9 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	}
 
 	state.Put("instance", info)
-	if err != nil {
-		return nil, err
-	}
 
 	// Build the steps
-	steps := []multistep.Step{}
+	var steps []multistep.Step
 
 	if b.config.FromScratch {
 		steps = append(steps,
