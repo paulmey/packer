@@ -16,6 +16,7 @@ type AzureClientSet interface {
 	DisksClient() computeapi.DisksClientAPI
 	ImagesClient() computeapi.ImagesClientAPI
 	VirtualMachinesClient() computeapi.VirtualMachinesClientAPI
+	VirtualMachineImagesClient() VirtualMachineImagesClientAPI
 
 	PollClient() autorest.Client
 }
@@ -72,6 +73,13 @@ func (s azureClientSet) VirtualMachinesClient() computeapi.VirtualMachinesClient
 	s.configureAutorestClient(&c.Client)
 	c.PollingDelay = s.PollingDelay
 	return c
+}
+
+func (s azureClientSet) VirtualMachineImagesClient() VirtualMachineImagesClientAPI {
+	c := compute.NewVirtualMachineImagesClient(s.subscriptionID)
+	s.configureAutorestClient(&c.Client)
+	c.PollingDelay = s.PollingDelay
+	return virtualMachineImagesClientAPI{c}
 }
 
 func (s azureClientSet) PollClient() autorest.Client {
