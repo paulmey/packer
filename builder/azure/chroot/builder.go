@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"log"
 	"runtime"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
 	"github.com/hashicorp/packer/builder/amazon/chroot"
@@ -34,14 +36,20 @@ type Config struct {
 	ChrootMounts      [][]string `mapstructure:"chroot_mounts"`
 	CopyFiles         []string   `mapstructure:"copy_files"`
 
+	TemporaryOSDiskName      string `mapstructure:"temporary_os_disk_name"`
 	OSDiskSizeGB             int32  `mapstructure:"os_disk_size_gb"`
 	OSDiskStorageAccountType string `mapstructure:"os_disk_storage_account_type"`
 	OSDiskCacheType          string `mapstructure:"os_disk_cache_type"`
 
-	ImageResourceID string `mapstructure:"image_resource_id"`
-	ImageOSState    string `mapstructure:"image_os_state"`
+	ImageResourceID       string `mapstructure:"image_resource_id"`
+	ImageOSState          string `mapstructure:"image_os_state"`
+	ImageHyperVGeneration string `mapstructure:"image_hyperv_generation"`
 
 	ctx interpolate.Context
+}
+
+func (c *Config) GetContext() interpolate.Context {
+	return c.ctx
 }
 
 type Builder struct {
@@ -105,6 +113,10 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		b.config.MountPartition = "1"
 	}
 
+	if b.config.TemporaryOSDiskName == "" {
+		b.config.TemporaryOSDiskName = "PackerTemp-{{timestamp}}"
+	}
+
 	if b.config.OSDiskStorageAccountType == "" {
 		b.config.OSDiskStorageAccountType = string(compute.PremiumLRS)
 	}
@@ -115,7 +127,10 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 
 	if b.config.ImageOSState == "" {
 		b.config.ImageOSState = string(compute.Generalized)
+	}
 
+	if b.config.ImageHyperVGeneration == "" {
+		b.config.ImageHyperVGeneration = string(compute.V1)
 	}
 
 	// checks, accumulate any errors or warnings
@@ -135,14 +150,32 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		errs = packer.MultiErrorAppend(errors.New("only 'from_scratch'=true is supported right now"))
 	}
 
-	if err := checkOSState(b.config.ImageOSState); err != nil {
-		errs = packer.MultiErrorAppend(errs, fmt.Errorf("image_os_state: %v", err))
-	}
 	if err := checkDiskCacheType(b.config.OSDiskCacheType); err != nil {
 		errs = packer.MultiErrorAppend(errs, fmt.Errorf("os_disk_cache_type: %v", err))
 	}
+
 	if err := checkStorageAccountType(b.config.OSDiskStorageAccountType); err != nil {
 		errs = packer.MultiErrorAppend(errs, fmt.Errorf("os_disk_storage_account_type: %v", err))
+	}
+
+	if b.config.ImageResourceID == "" {
+		errs = packer.MultiErrorAppend(errs, errors.New("image_resource_id is required"))
+	} else {
+		r, err := azure.ParseResourceID(b.config.ImageResourceID)
+		if err != nil ||
+			!strings.EqualFold(r.Provider, "Microsoft.Compute") ||
+			!strings.EqualFold(r.ResourceType, "images") {
+			errs = packer.MultiErrorAppend(fmt.Errorf(
+				"image_resource_id: %q is not a valid image resource id", b.config.ImageResourceID))
+		}
+	}
+
+	if err := checkOSState(b.config.ImageOSState); err != nil {
+		errs = packer.MultiErrorAppend(errs, fmt.Errorf("image_os_state: %v", err))
+	}
+
+	if err := checkHyperVGeneration(b.config.ImageHyperVGeneration); err != nil {
+		errs = packer.MultiErrorAppend(errs, fmt.Errorf("image_hyperv_generation: %v", err))
 	}
 
 	if errs != nil {
@@ -159,7 +192,7 @@ func checkOSState(s string) interface{} {
 			return nil
 		}
 	}
-	return fmt.Errorf("%q is not a valid value (%v)",
+	return fmt.Errorf("%q is not a valid value %v",
 		s, compute.PossibleOperatingSystemStateTypesValues())
 }
 
@@ -169,7 +202,7 @@ func checkDiskCacheType(s string) interface{} {
 			return nil
 		}
 	}
-	return fmt.Errorf("%q is not a valid value (%v)",
+	return fmt.Errorf("%q is not a valid value %v",
 		s, compute.PossibleCachingTypesValues())
 }
 
@@ -179,8 +212,18 @@ func checkStorageAccountType(s string) interface{} {
 			return nil
 		}
 	}
-	return fmt.Errorf("%q is not a valid value (%v)",
+	return fmt.Errorf("%q is not a valid value %v",
 		s, compute.PossibleDiskStorageAccountTypesValues())
+}
+
+func checkHyperVGeneration(s string) interface{} {
+	for _, v := range compute.PossibleHyperVGenerationValues() {
+		if compute.HyperVGeneration(s) == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("%q is not a valid value %v",
+		s, compute.PossibleHyperVGenerationValues())
 }
 
 func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
@@ -219,17 +262,13 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		return nil, err
 	}
 
-	osDiskName := "PackerBuiltOsDisk"
-
 	state.Put("instance", info)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build the steps
-	steps := []multistep.Step{
-		//		&StepInstanceInfo{},
-	}
+	steps := []multistep.Step{}
 
 	if !b.config.FromScratch {
 		panic("Only from_scratch is currently implemented")
@@ -239,9 +278,11 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			&StepCreateNewDisk{
 				SubscriptionID:         info.SubscriptionID,
 				ResourceGroup:          info.ResourceGroupName,
-				DiskName:               osDiskName,
+				DiskName:               b.config.TemporaryOSDiskName,
 				DiskSizeGB:             b.config.OSDiskSizeGB,
 				DiskStorageAccountType: b.config.OSDiskStorageAccountType,
+				HyperVGeneration:       b.config.ImageHyperVGeneration,
+				Location:               info.Location,
 			})
 	}
 
@@ -271,6 +312,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			ImageOSState:             b.config.ImageOSState,
 			OSDiskCacheType:          b.config.OSDiskCacheType,
 			OSDiskStorageAccountType: b.config.OSDiskStorageAccountType,
+			Location:                 info.Location,
 		},
 	)
 

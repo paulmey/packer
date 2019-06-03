@@ -40,17 +40,13 @@ func New(c Config, say func(string)) (AzureClientSet, error) {
 		authorizer:     autorest.NewBearerAuthorizer(token),
 		subscriptionID: c.SubscriptionID,
 		sender:         http.DefaultClient,
+		PollingDelay:   time.Second,
 	}, nil
 }
 
 func (s azureClientSet) configureAutorestClient(c *autorest.Client) {
 	c.Authorizer = s.authorizer
 	c.Sender = s.sender
-
-	//l := log.New(os.Stdout,"AzureClient: ", log.LstdFlags)
-	//li := autorest.LoggingInspector{Logger: l}
-	//c.RequestInspector = li.WithInspection()
-	//c.ResponseInspector = li.ByInspecting()
 }
 
 func (s azureClientSet) MetadataClient() MetadataClientAPI {
