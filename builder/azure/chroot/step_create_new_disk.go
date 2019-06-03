@@ -16,7 +16,7 @@ var _ multistep.Step = &StepCreateNewDisk{}
 
 type StepCreateNewDisk struct {
 	SubscriptionID, ResourceGroup, DiskName string
-	DiskSizeGB                              int32
+	DiskSizeGB                              int32 // optional, ignored if 0
 	DiskStorageAccountType                  string
 	HyperVGeneration                        string
 	Location                                string
@@ -46,10 +46,14 @@ func (s StepCreateNewDisk) Run(ctx context.Context, state multistep.StateBag) mu
 			OsType:           "Linux",
 			HyperVGeneration: compute.HyperVGeneration(s.HyperVGeneration),
 			CreationData:     &compute.CreationData{},
-			DiskSizeGB:       to.Int32Ptr(s.DiskSizeGB),
 		},
 		//Tags: map[string]*string{
 	}
+
+	if s.DiskSizeGB > 0 {
+		disk.DiskProperties.DiskSizeGB = to.Int32Ptr(s.DiskSizeGB)
+	}
+
 	if s.PlatformImage == nil {
 		disk.CreationData.CreateOption = compute.Empty
 	} else {
