@@ -40,6 +40,9 @@ func Test_DiskAttacherAttachesDiskToVM(t *testing.T) {
 			t.Log("Disk is attached, assuming to this machine, trying to detach")
 			err = da.DetachDisk(context.TODO(), to.String(disk.ID))
 			require.Nil(t, err)
+			t.Log("... waiting for detach to complete disk")
+			err = da.WaitForDetach(context.TODO(), to.String(disk.ID))
+			require.Nil(t, err)
 		}
 		t.Log("Deleting disk")
 		result, err := azcli.DisksClient().Delete(context.TODO(), vm.ResourceGroupName, testDiskName)
@@ -82,10 +85,14 @@ func Test_DiskAttacherAttachesDiskToVM(t *testing.T) {
 	err = da.DetachDisk(context.TODO(), to.String(d.ID))
 	require.Nil(t, err)
 
+	t.Log("Waiting for detach to complete disk")
+	err = da.WaitForDetach(context.TODO(), to.String(d.ID))
+	require.Nil(t, err)
+
 	t.Log("Deleting disk")
 	result, err := azcli.DisksClient().Delete(context.TODO(), vm.ResourceGroupName, testDiskName)
 	if err == nil {
 		err = result.WaitForCompletionRef(context.TODO(), azcli.PollClient())
 	}
-	require.Nil(t, err)
+	require.Nil(t, err, "possible ServiceError: %v", client.FindAzureErrorService(err))
 }

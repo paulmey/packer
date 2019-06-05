@@ -1,6 +1,8 @@
 package client
 
 import (
+	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/seborama/govcr"
 	"os"
@@ -17,12 +19,22 @@ func GetTestClientSet(t *testing.T) (AzureClientSet, error) {
 	cfg := &govcr.VCRConfig{
 		DisableRecording: true,
 		RequestFilters: govcr.RequestFilters{
-			govcr.RequestDeleteHeaderKeys("Authorization"),
+			govcr.RequestDeleteHeaderKeys("Authorization", "User-Agent"),
 			govcr.RequestFilter(func(req govcr.Request) govcr.Request {
 				req.URL.Path = subscriptionPathRegex.ReplaceAllLiteralString(req.URL.Path,
 					"/subscriptions/00000000-0000-1234-0000-000000000000")
 				return req
 			}).OnPath(`/management.azure.com/`),
+		},
+		ResponseFilters: govcr.ResponseFilters{
+			govcr.ResponseDeleteHeaderKeys(
+				"Date", "Server", "Cache-Control", "Expires", "Pragma", "Strict-Transport-Security", "Vary",
+				"X-Content-Type-Options",
+				"X-Ms-Correlation-Request-Id",
+				"X-Ms-Ratelimit-Remaining-Resource",
+				"X-Ms-Ratelimit-Remaining-Subscription-Reads",
+				"X-Ms-Request-Id",
+				"X-Ms-Routing-Request-Id"),
 		},
 	}
 	cli := azureClientSet{}
@@ -48,3 +60,22 @@ func GetTestClientSet(t *testing.T) (AzureClientSet, error) {
 	return cli, nil
 }
 
+func FindAzureErrorService(err error) *azure.ServiceError {
+	switch e := err.(type) {
+	case autorest.DetailedError:
+		if e.Original != nil {
+			return FindAzureErrorService(e.Original)
+		}
+		return nil
+	case azure.RequestError:
+		if e.Original != nil {
+			return FindAzureErrorService(e.Original)
+		}
+		if e.ServiceError != nil {
+			return e.ServiceError
+		}
+		return nil
+	default:
+		return nil
+	}
+}
