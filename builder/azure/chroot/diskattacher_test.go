@@ -24,8 +24,10 @@ func init() {
 // Tests assume current machine is capable of running chroot builder (i.e. an Azure VM)
 
 func Test_DiskAttacherAttachesDiskToVM(t *testing.T) {
-	azcli, err := client.GetTestClientSet(t)
+	azcli, stopRecording, err := client.GetTestClientSet(t)
 	require.Nil(t, err)
+	defer stopRecording()
+
 	da := NewDiskAttacher(azcli)
 	testDiskName := t.Name()
 
