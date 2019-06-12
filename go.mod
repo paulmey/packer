@@ -10,6 +10,7 @@ require (
 	github.com/NaverCloudPlatform/ncloud-sdk-go v0.0.0-20180110055012-c2e73f942591
 	github.com/Telmate/proxmox-api-go v0.0.0-20190410200643-f08824d5082d
 	github.com/abdullin/seq v0.0.0-20160510034733-d5467c17e7af // indirect
+	github.com/ad2games/vcr-go v0.0.0-20180813145912-faa03fdbd7ac
 	github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190418113227-25233c783f4e
 	github.com/aliyun/aliyun-oss-go-sdk v0.0.0-20170113022742-e6dbea820a9f
 	github.com/antchfx/xpath v0.0.0-20170728053731-b5c552e1acbd // indirect
@@ -25,7 +26,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/digitalocean/godo v1.11.1
 	github.com/dimchansky/utfbom v1.1.0 // indirect
-	github.com/dnaeon/go-vcr v1.0.0 // indirect
+	github.com/dnaeon/go-vcr v1.0.1
 	github.com/docker/docker v0.0.0-20180422163414-57142e89befe // indirect
 	github.com/dylanmei/iso8601 v0.1.0 // indirect
 	github.com/dylanmei/winrmtest v0.0.0-20170819153634-c2fbb09e6c08
@@ -100,7 +101,7 @@ require (
 	github.com/ryanuber/go-glob v0.0.0-20170128012129-256dc444b735 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/scaleway/scaleway-cli v0.0.0-20180921094345-7b12c9699d70
-	github.com/seborama/govcr v3.0.1+incompatible
+	github.com/seborama/govcr v3.0.1+incompatible // indirect
 	github.com/sirupsen/logrus v1.2.0
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
 	github.com/smartystreets/goconvey v0.0.0-20181108003508-044398e4856c // indirect

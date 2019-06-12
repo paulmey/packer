@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/sirupsen/logrus"
+	"os"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute"
@@ -24,7 +25,14 @@ func init() {
 // Tests assume current machine is capable of running chroot builder (i.e. an Azure VM)
 
 func Test_DiskAttacherAttachesDiskToVM(t *testing.T) {
-	azcli, stopRecording, err := client.GetTestClientSet(t)
+	var vmInfo *client.ComputeInfo
+	azcli, stopRecording, err := client.GetTestClientSet(t,
+		cleanRequestHeaders,
+		cleanResponseHeaders,
+		cleanMetaDataResponses(&vmInfo),
+		cleanGetVMResponses,
+		replaceComputeInfo(&vmInfo),
+	)
 	require.Nil(t, err)
 	defer stopRecording()
 
@@ -77,12 +85,14 @@ func Test_DiskAttacherAttachesDiskToVM(t *testing.T) {
 	lun, err := da.AttachDisk(context.TODO(), to.String(d.ID))
 	assert.Nil(t, err)
 
-	t.Log("Waiting for device")
-	dev, err := da.WaitForDevice(context.TODO(), lun)
-	assert.Nil(t, err)
-
-	t.Log("Device path:", dev)
-
+	if os.Getenv("AZURE_RECORD") == "" {
+		t.Log("Not waiting for device, because this is a previous recording")
+	} else {
+		t.Log("Waiting for device")
+		dev, err := da.WaitForDevice(context.TODO(), lun)
+		assert.Nil(t, err)
+		t.Log("Device path:", dev)
+	}
 	t.Log("Detaching disk")
 	err = da.DetachDisk(context.TODO(), to.String(d.ID))
 	require.Nil(t, err)

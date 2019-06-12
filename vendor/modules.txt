@@ -16,13 +16,18 @@ github.com/Azure/azure-sdk-for-go/services/network/mgmt/2018-01-01/network
 github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-02-01/resources
 github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage
 github.com/Azure/azure-sdk-for-go/storage
+github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute
+github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute
 github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions
+github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute/computeapi
 github.com/Azure/azure-sdk-for-go/version
+github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute/computeapi
 # github.com/Azure/go-autorest v10.12.0+incompatible
 github.com/Azure/go-autorest/autorest
 github.com/Azure/go-autorest/autorest/adal
 github.com/Azure/go-autorest/autorest/azure
 github.com/Azure/go-autorest/autorest/to
+github.com/Azure/go-autorest/autorest/azure/auth
 github.com/Azure/go-autorest/autorest/date
 github.com/Azure/go-autorest/autorest/validation
 # github.com/Azure/go-autorest/tracing v0.1.0
@@ -51,6 +56,8 @@ github.com/NaverCloudPlatform/ncloud-sdk-go/request
 github.com/NaverCloudPlatform/ncloud-sdk-go/oauth
 # github.com/Telmate/proxmox-api-go v0.0.0-20190410200643-f08824d5082d
 github.com/Telmate/proxmox-api-go/proxmox
+# github.com/ad2games/vcr-go v0.0.0-20180813145912-faa03fdbd7ac
+github.com/ad2games/vcr-go
 # github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190418113227-25233c783f4e
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/errors
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests
@@ -148,6 +155,11 @@ github.com/davecgh/go-spew/spew
 github.com/dgrijalva/jwt-go
 # github.com/digitalocean/godo v1.11.1
 github.com/digitalocean/godo
+# github.com/dimchansky/utfbom v1.1.0
+github.com/dimchansky/utfbom
+# github.com/dnaeon/go-vcr v1.0.1
+github.com/dnaeon/go-vcr/cassette
+github.com/dnaeon/go-vcr/recorder
 # github.com/docker/docker v0.0.0-20180422163414-57142e89befe
 github.com/docker/docker/pkg/namesgenerator
 # github.com/dustin/go-humanize v1.0.0
@@ -399,6 +411,7 @@ github.com/scaleway/scaleway-cli/pkg/sshcommand
 github.com/sirupsen/logrus
 # github.com/stretchr/testify v1.3.0
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # github.com/tencentcloud/tencentcloud-sdk-go v0.0.0-20181220135002-f1744d40d346
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile
@@ -500,10 +513,12 @@ golang.org/x/crypto/curve25519
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/internal/chacha20
 golang.org/x/crypto/poly1305
+golang.org/x/crypto/pkcs12
 golang.org/x/crypto/md4
 golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/crypto/internal/subtle
 golang.org/x/crypto/ssh/terminal
+golang.org/x/crypto/pkcs12/internal/rc2
 # golang.org/x/net v0.0.0-20190424112056-4829fb13d2c6
 golang.org/x/net/proxy
 golang.org/x/net/http2

@@ -31,6 +31,8 @@ github.com/Telmate/proxmox-api-go v0.0.0-20190410200643-f08824d5082d h1:igrCnHhe
 github.com/Telmate/proxmox-api-go v0.0.0-20190410200643-f08824d5082d/go.mod h1:OGWyIMJ87/k/GCz8CGiWB2HOXsOVDM6Lpe/nFPkC4IQ=
 github.com/abdullin/seq v0.0.0-20160510034733-d5467c17e7af h1:DBNMBMuMiWYu0b+8KMJuWmfCkcxl09JwdlqwDZZ6U14=
 github.com/abdullin/seq v0.0.0-20160510034733-d5467c17e7af/go.mod h1:5Jv4cbFiHJMsVxt52+i0Ha45fjshj6wxYr1r19tB9bw=
+github.com/ad2games/vcr-go v0.0.0-20180813145912-faa03fdbd7ac h1:vT9zSFd7VbivxBmCpwiPHVGQ4+EvDWcHv9o1rN0IWoI=
+github.com/ad2games/vcr-go v0.0.0-20180813145912-faa03fdbd7ac/go.mod h1:QzWh/nWXsODOTaUnw8oRE2UbeTQROI3N/aH8xoa00XE=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190418113227-25233c783f4e h1:/8wOj52pewmIX/8d5eVO3t7Rr3astkBI/ruyg4WNqRo=
@@ -83,8 +85,8 @@ github.com/digitalocean/godo v1.11.1 h1:OsTh37YFKk+g6DnAOrkXJ9oDArTkRx5UTkBJ2EWA
 github.com/digitalocean/godo v1.11.1/go.mod h1:h6faOIcZ8lWIwNQ+DN7b3CgX4Kwby5T+nbpNqkUIozU=
 github.com/dimchansky/utfbom v1.1.0 h1:FcM3g+nofKgUteL8dm/UpdRXNC9KmADgTpLKsu0TRo4=
 github.com/dimchansky/utfbom v1.1.0/go.mod h1:rO41eb7gLfo8SF1jd9F8HplJm1Fewwi4mQvIirEdv+8=
-github.com/dnaeon/go-vcr v1.0.0 h1:1QZ+ahihvRvppcJnFvuoHAdnZTf1PqKjO4Ftr1cfQTo=
-github.com/dnaeon/go-vcr v1.0.0/go.mod h1:aBB1+wY4s93YsC3HHjMBMrwTj2R9FHDzUr9KyGc8n1E=
+github.com/dnaeon/go-vcr v1.0.1 h1:r8L/HqC0Hje5AXMu1ooW8oyQyOFv4GxqpL0nRP7SLLY=
+github.com/dnaeon/go-vcr v1.0.1/go.mod h1:aBB1+wY4s93YsC3HHjMBMrwTj2R9FHDzUr9KyGc8n1E=
 github.com/docker/docker v0.0.0-20180422163414-57142e89befe h1:VW8TnWi0CZgg7oCv0wH6evNwkzcJg/emnw4HrVIWws4=
 github.com/docker/docker v0.0.0-20180422163414-57142e89befe/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=

@@ -1,7 +1,9 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"testing"
@@ -9,89 +11,250 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
-	"github.com/dnaeon/go-vcr/cassette"
-	"github.com/dnaeon/go-vcr/recorder"
+	"gopkg.in/yaml.v2"
 )
 
-func GetTestClientSet(t *testing.T) (AzureClientSet, func() error, error) {
-	replayOnly :=
-		os.Getenv("AZURE_CLIENT_ID") == "" ||
-			os.Getenv("AZURE_CLIENT_SECRET") == "" ||
-			os.Getenv("AZURE_SUBSCRIPTION_ID") == "" ||
-			os.Getenv("AZURE_TENANT_ID") == ""
+var _ http.RoundTripper = &recorder{}
 
-	const mockSubscriptionID = "00000000-0000-1234-0000-000000000000"
+type recorder struct {
+	Interactions []Interaction
+}
 
-	r, err := recorder.New(fmt.Sprintf("fixtures/%s", t.Name()))
-	if err != nil {
-		return nil, nil, fmt.Errorf("Error setting up VCR: %v", err)
+type Interaction struct {
+	Request
+	Response
+}
+
+type InteractionModifier func(Interaction) Interaction
+
+func (m InteractionModifier) Apply(i Interaction) Interaction {
+	if m == nil {
+		return i
 	}
-	r.AddFilter(func(i *cassette.Interaction) error {
-		delete(i.Request.Headers, "Authorization")
-		delete(i.Request.Headers, "User-Agent")
+	return m(i)
+}
 
-		delete(i.Response.Headers, "Cache-Control")
-		delete(i.Response.Headers, "Date")
-		delete(i.Response.Headers, "Expires")
-		delete(i.Response.Headers, "Pragma")
-		delete(i.Response.Headers, "Server")
-		delete(i.Response.Headers, "Strict-Transport-Security")
-		delete(i.Response.Headers, "Vary")
-		delete(i.Response.Headers, "X-Content-Type-Options")
-		delete(i.Response.Headers, "X-Ms-Correlation-Request-Id")
-		delete(i.Response.Headers, "X-Ms-Ratelimit-Remaining-Resource")
-		delete(i.Response.Headers, "X-Ms-Ratelimit-Remaining-Subscription-Reads")
-		delete(i.Response.Headers, "X-Ms-Request-Id")
-		delete(i.Response.Headers, "X-Ms-Routing-Request-Id")
-		delete(i.Response.Headers, "X-Ms-Served-By")
+type Request struct {
+	Method string
+	Url    string
+	Header http.Header `yaml:",omitempty"`
+	Body   string      `yaml:",omitempty"`
+}
 
-		return nil
-	})
+type Response struct {
+	Header     http.Header `yaml:",omitempty"`
+	Body       string      `yaml:",omitempty"`
+	StatusCode int
+}
 
-	//cfg := &govcr.VCRConfig{
-	//	DisableRecording: true,
-	//	RequestFilters: govcr.RequestFilters{
-	//		govcr.RequestDeleteHeaderKeys("Authorization", "User-Agent"),
-	//		govcr.RequestFilter(func(req govcr.Request) govcr.Request {
-	//			req.URL.Path = subscriptionPathRegex.ReplaceAllLiteralString(req.URL.Path,
-	//				"/subscriptions/00000000-0000-1234-0000-000000000000")
-	//			return req
-	//		}).OnPath(`/management.azure.com/`),
-	//	},
-	//	ResponseFilters: govcr.ResponseFilters{
-	//		govcr.ResponseDeleteHeaderKeys(
-	//			"Date", "Server", "Cache-Control", "Expires", "Pragma", "Strict-Transport-Security", "Vary",
-	//			"X-Content-Type-Options",
-	//			"X-Ms-Correlation-Request-Id",
-	//			"X-Ms-Ratelimit-Remaining-Resource",
-	//			"X-Ms-Ratelimit-Remaining-Subscription-Reads",
-	//			"X-Ms-Request-Id",
-	//			"X-Ms-Routing-Request-Id"),
-	//	},
-	//}
+func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+
+	request, err := newRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	responseBody := ""
+	if resp.Body != nil {
+		d, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		responseBody = string(d)
+		resp.Body.Close()
+		resp.Body = ioutil.NopCloser(bytes.NewBuffer(d))
+	}
+
+	response := Response{
+		StatusCode: resp.StatusCode,
+		Header:     resp.Header,
+		Body:       responseBody,
+	}
+
+	i := Interaction{
+		request,
+		response,
+	}
+	r.Interactions = append(r.Interactions, i)
+
+	return resp, nil
+}
+
+func newRequest(req *http.Request) (Request, error) {
+	requestBody := ""
+	if req.Body != nil {
+		d, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			return Request{}, err
+		}
+		requestBody = string(d)
+		req.Body.Close()
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(d))
+	}
+
+	return Request{
+		Method: req.Method,
+		Url:    req.URL.String(),
+		Header: req.Header,
+		Body:   requestBody,
+	}, nil
+}
+
+const MockSubscriptionID = "00000000-0000-1234-0000-000000000000"
+
+func GetTestClientSet(t *testing.T, modifiers ...InteractionModifier) (AzureClientSet, func(), error) {
+
 	cli := azureClientSet{}
 
-	if replayOnly {
-		t.Log("Azure credentials not available, will use existing recordings.")
-		cli.subscriptionID = mockSubscriptionID
-	} else {
-		if os.Getenv("AZURE_RECORD") == "" {
-			r.SetTransport(nil)
+	if os.Getenv("AZURE_RECORD") == "" {
+		t.Log("Test uses existing recordings.")
+		replayer, err := newReplayer(t.Name(), t, modifiers)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error initializing replayer: %v", err)
+
 		}
+		cli.sender = &http.Client{Transport: replayer}
+		cli.subscriptionID = MockSubscriptionID
+		return cli, func() {}, nil
+	} else {
+		if os.Getenv("AZURE_CLIENT_ID") == "" ||
+			os.Getenv("AZURE_CLIENT_SECRET") == "" ||
+			os.Getenv("AZURE_SUBSCRIPTION_ID") == "" ||
+			os.Getenv("AZURE_TENANT_ID") == "" {
+			t.Fatalf("AZURE_RECORD en var set, but one of AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID missing")
+		}
+		recorder := &recorder{}
+		cli.sender = &http.Client{
+			Transport: recorder,
+		}
+		cli.PollingDelay = 0
+
 		a, err := auth.NewAuthorizerFromEnvironment()
 		if err == nil {
 			cli.authorizer = a
 			cli.subscriptionID = os.Getenv("AZURE_SUBSCRIPTION_ID")
-			cli.PollingDelay = 0
 		} else {
-			r.Stop()
 			return nil, nil, fmt.Errorf("Error creating Azure authorizer: %v", err)
 		}
+		return cli, func() {
+			var interactions []Interaction
+			for _, i := range recorder.Interactions {
+				for _, m := range modifiers {
+					i = m.Apply(i)
+				}
+				interactions = append(interactions, i)
+			}
+			err := save(interactions, t.Name())
+			if err != nil {
+				panic(err)
+			}
+		}, nil
+	}
+}
+
+var _ http.RoundTripper = &replayer{}
+
+type replayer struct {
+	*testing.T
+	interactions     []Interaction
+	ipointer         int
+	requestMatcher   func(actualRequest, savedRequest Request) bool
+	RequestModifiers []InteractionModifier
+}
+
+func defaultRequestMatcher(a, s Request) bool {
+	return a.Url == s.Url && a.Method == s.Method && a.Body == s.Body
+}
+
+func (r *replayer) RoundTrip(req *http.Request) (*http.Response, error) {
+	if r.ipointer >= len(r.interactions) {
+		err := fmt.Errorf("replayer: ran out of interactions to replay")
+		r.Fatal(err)
+		return nil, err
 	}
 
-	cli.sender = &http.Client{Transport: r}
+	savedInteraction := r.interactions[r.ipointer]
 
-	return cli, r.Stop, nil
+	actual, err := newRequest(req)
+	if err != nil {
+		err := fmt.Errorf("replayer: error reading request: %v", err)
+		r.Fatal(err)
+		return nil, err
+	}
+
+	// modify request so that it looks like the saved one
+	i := Interaction{Request: actual}
+	for _, m := range r.RequestModifiers {
+		i = m.Apply(i)
+	}
+	actual = i.Request
+
+	matcher := r.requestMatcher
+	if matcher == nil {
+		matcher = defaultRequestMatcher
+	}
+	if !matcher(actual, savedInteraction.Request) {
+		err := fmt.Errorf("replayer: request %d did not match:\nactual: %+v\nexpected: %+v",
+			r.ipointer,
+			actual, savedInteraction.Request)
+		r.Fatal(err)
+		return nil, err
+	}
+
+	response := http.Response{
+		Request:       req,
+		StatusCode:    savedInteraction.StatusCode,
+		Body:          ioutil.NopCloser(bytes.NewBufferString(savedInteraction.Response.Body)),
+		ContentLength: int64(len(savedInteraction.Response.Body)),
+		Header:        savedInteraction.Response.Header,
+	}
+	fmt.Printf("%d %s %d %d\n%s\n", r.ipointer, req.Method, response.StatusCode, savedInteraction.StatusCode,
+		savedInteraction.Response.Body)
+	r.ipointer = r.ipointer + 1
+
+	return &response, nil
+}
+
+func newReplayer(name string, t *testing.T, modifiers []InteractionModifier) (*replayer, error) {
+
+	d, err := ioutil.ReadFile(fmt.Sprintf("fixtures/%s.yml", name))
+	if err != nil {
+		return nil, err
+	}
+
+	var interactions []Interaction
+	err = yaml.Unmarshal(d, &interactions)
+	if err != nil {
+		return nil, err
+	}
+
+	return &replayer{
+		interactions:     interactions,
+		T:                t,
+		requestMatcher:   defaultRequestMatcher,
+		RequestModifiers: modifiers,
+	}, nil
+}
+
+func save(interactions []Interaction, name string) error {
+	d, err := yaml.Marshal(interactions)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll("fixtures", 0777)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fmt.Sprintf("fixtures/%s.yml", name), d, 0666)
+}
+
+func filterRequestHeaders(interactions []Interaction) []Interaction {
+	return interactions
 }
 
 func FindAzureErrorService(err error) *azure.ServiceError {

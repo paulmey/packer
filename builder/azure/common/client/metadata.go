@@ -17,11 +17,11 @@ type MetadataClientAPI interface {
 	GetComputeInfo() (*ComputeInfo, error)
 }
 
-type ComputeInfo struct{
-	Name              string
-	ResourceGroupName string
-	SubscriptionID    string
-Location string
+type ComputeInfo struct {
+	Name              string `json:"name"`
+	ResourceGroupName string `json:"resourceGroupName"`
+	SubscriptionID    string `json:"subscriptionId"`
+	Location          string `json:"location"`
 }
 
 // metadataClient implements MetadataClient
@@ -65,7 +65,7 @@ func (client metadataClient) GetComputeInfo() (*ComputeInfo, error) {
 	return &vminfo.ComputeInfo, nil
 }
 
-func(ci ComputeInfo) ResourceID() string{
+func (ci ComputeInfo) ResourceID() string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s",
 		ci.SubscriptionID,
 		ci.ResourceGroupName,
