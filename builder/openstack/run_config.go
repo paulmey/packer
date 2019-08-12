@@ -13,25 +13,28 @@ import (
 // RunConfig contains configuration for running an instance from a source
 // image and details on how to access that launched image.
 type RunConfig struct {
-	Comm communicator.Config `mapstructure:",squash"`
+	Comm         communicator.Config `mapstructure:",squash"`
+	SSHInterface string              `mapstructure:"ssh_interface"`
+	SSHIPVersion string              `mapstructure:"ssh_ip_version"`
 
-	SourceImage        string            `mapstructure:"source_image"`
-	SourceImageName    string            `mapstructure:"source_image_name"`
-	SourceImageFilters ImageFilter       `mapstructure:"source_image_filter"`
-	Flavor             string            `mapstructure:"flavor"`
-	AvailabilityZone   string            `mapstructure:"availability_zone"`
-	RackconnectWait    bool              `mapstructure:"rackconnect_wait"`
-	FloatingIPNetwork  string            `mapstructure:"floating_ip_network"`
-	FloatingIP         string            `mapstructure:"floating_ip"`
-	ReuseIPs           bool              `mapstructure:"reuse_ips"`
-	SecurityGroups     []string          `mapstructure:"security_groups"`
-	Networks           []string          `mapstructure:"networks"`
-	Ports              []string          `mapstructure:"ports"`
-	UserData           string            `mapstructure:"user_data"`
-	UserDataFile       string            `mapstructure:"user_data_file"`
-	InstanceName       string            `mapstructure:"instance_name"`
-	InstanceMetadata   map[string]string `mapstructure:"instance_metadata"`
-	ForceDelete        bool              `mapstructure:"force_delete"`
+	SourceImage           string            `mapstructure:"source_image"`
+	SourceImageName       string            `mapstructure:"source_image_name"`
+	SourceImageFilters    ImageFilter       `mapstructure:"source_image_filter"`
+	Flavor                string            `mapstructure:"flavor"`
+	AvailabilityZone      string            `mapstructure:"availability_zone"`
+	RackconnectWait       bool              `mapstructure:"rackconnect_wait"`
+	FloatingIPNetwork     string            `mapstructure:"floating_ip_network"`
+	FloatingIP            string            `mapstructure:"floating_ip"`
+	ReuseIPs              bool              `mapstructure:"reuse_ips"`
+	SecurityGroups        []string          `mapstructure:"security_groups"`
+	Networks              []string          `mapstructure:"networks"`
+	InstanceFloatingIPNet string            `mapstructure:"instance_floating_ip_net"`
+	Ports                 []string          `mapstructure:"ports"`
+	UserData              string            `mapstructure:"user_data"`
+	UserDataFile          string            `mapstructure:"user_data_file"`
+	InstanceName          string            `mapstructure:"instance_name"`
+	InstanceMetadata      map[string]string `mapstructure:"instance_metadata"`
+	ForceDelete           bool              `mapstructure:"force_delete"`
 
 	ConfigDrive bool `mapstructure:"config_drive"`
 
@@ -57,14 +60,15 @@ type ImageFilter struct {
 }
 
 type ImageFilterOptions struct {
-	Name       string   `mapstructure:"name"`
-	Owner      string   `mapstructure:"owner"`
-	Tags       []string `mapstructure:"tags"`
-	Visibility string   `mapstructure:"visibility"`
+	Name       string            `mapstructure:"name"`
+	Owner      string            `mapstructure:"owner"`
+	Tags       []string          `mapstructure:"tags"`
+	Visibility string            `mapstructure:"visibility"`
+	Properties map[string]string `mapstructure:"properties"`
 }
 
 func (f *ImageFilterOptions) Empty() bool {
-	return f.Name == "" && f.Owner == "" && len(f.Tags) == 0 && f.Visibility == ""
+	return f.Name == "" && f.Owner == "" && len(f.Tags) == 0 && f.Visibility == "" && len(f.Properties) == 0
 }
 
 func (f *ImageFilterOptions) Build() (*images.ListOpts, error) {
@@ -131,7 +135,7 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 		errs = append(errs, errors.New("A flavor must be specified"))
 	}
 
-	if c.Comm.SSHIPVersion != "" && c.Comm.SSHIPVersion != "4" && c.Comm.SSHIPVersion != "6" {
+	if c.SSHIPVersion != "" && c.SSHIPVersion != "4" && c.SSHIPVersion != "6" {
 		errs = append(errs, errors.New("SSH IP version must be either 4 or 6"))
 	}
 

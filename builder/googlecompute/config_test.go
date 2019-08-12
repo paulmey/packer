@@ -431,7 +431,8 @@ func testConfig(t *testing.T) (config map[string]interface{}, tempAccountFile st
 		"image_licenses": []string{
 			"test-license",
 		},
-		"zone": "us-east1-a",
+		"metadata_files": map[string]string{},
+		"zone":           "us-east1-a",
 	}
 
 	return config, tempAccountFile
@@ -484,6 +485,31 @@ func testAccountFile(t *testing.T) string {
 	return tf.Name()
 }
 
-// This is just some dummy data that doesn't actually work (it was revoked
-// a long time ago).
-const testAccountContent = `{}`
+const testMetadataFileContent = `testMetadata`
+
+func testMetadataFile(t *testing.T) string {
+	tf, err := ioutil.TempFile("", "packer")
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+	defer tf.Close()
+	if _, err := tf.Write([]byte(testMetadataFileContent)); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	return tf.Name()
+}
+
+// This is just some dummy data that doesn't actually work
+const testAccountContent = `{
+  "type": "service_account",
+  "project_id": "test-project-123456789",
+  "private_key_id": "bananaphone",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nring_ring_ring_ring_ring_ring_ring_BANANAPHONE\n-----END PRIVATE KEY-----\n",
+  "client_email": "raffi-compute@developer.gserviceaccount.com",
+  "client_id": "1234567890",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/12345-compute%40developer.gserviceaccount.com"
+}`

@@ -308,9 +308,9 @@ builder.
 -   `virtualbox_version_file` (string) - The path within the virtual machine to
     upload a file that contains the VirtualBox version that was used to create
     the machine. This information can be useful for provisioning. By default
-    this is `.vbox_version`, which will generally be upload it into the
-    home directory. Set to an empty string to skip uploading this file, which
-    can be useful when using the `none` communicator.
+    this is `.vbox_version`, which will generally be uploaded into the home
+    directory. Set to an empty string to skip uploading this file, which can be
+    useful when using the `none` communicator.
 
 -   `vm_name` (string) - This is the name of the OVF file for the new virtual
     machine, without the file extension. By default this is `packer-BUILDNAME`,
@@ -375,6 +375,11 @@ Ubuntu 12.04 installer:
 ]
 ```
 
+Please note that for the Virtuabox builder, the IP address of the HTTP server
+Packer launches for you to access files like the preseed file in the example
+above (`{{ .HTTPIP }}`) is hardcoded to 10.0.2.2. If you change the network
+of your VM you must guarantee that you can still access this HTTP server.
+
 For more examples of various boot commands, see the sample projects from our
 [community templates page](/community-tools.html#templates).
 
@@ -402,14 +407,12 @@ interface to VirtualBox where you can completely control VirtualBox. It can be
 used to do things such as set RAM, CPUs, etc.
 
 Extra VBoxManage commands are defined in the template in the `vboxmanage`
-section. An example is shown below that sets the memory and number of CPUs
-within the virtual machine:
+section. An example is shown below that sets the VRAM within the virtual machine:
 
 ``` json
 {
   "vboxmanage": [
-    ["modifyvm", "{{.Name}}", "--memory", "1024"],
-    ["modifyvm", "{{.Name}}", "--cpus", "2"]
+    ["modifyvm", "{{.Name}}", "--vram", "64"]
   ]
 }
 ```

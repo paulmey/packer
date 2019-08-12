@@ -75,6 +75,14 @@ type SharedImageGallery struct {
 	ImageVersion  string `mapstructure:"image_version"`
 }
 
+type SharedImageGalleryDestination struct {
+	SigDestinationResourceGroup      string   `mapstructure:"resource_group"`
+	SigDestinationGalleryName        string   `mapstructure:"gallery_name"`
+	SigDestinationImageName          string   `mapstructure:"image_name"`
+	SigDestinationImageVersion       string   `mapstructure:"image_version"`
+	SigDestinationReplicationRegions []string `mapstructure:"replication_regions"`
+}
+
 type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 
@@ -87,6 +95,10 @@ type Config struct {
 
 	// Shared Gallery
 	SharedGallery SharedImageGallery `mapstructure:"shared_image_gallery"`
+
+	// Shared Gallery Destination
+	SharedGalleryDestination SharedImageGalleryDestination `mapstructure:"shared_image_gallery_destination"`
+	SharedGalleryTimeout     time.Duration                 `mapstructure:"shared_image_gallery_timeout"`
 
 	// Compute
 	ImagePublisher string `mapstructure:"image_publisher"`
@@ -561,16 +573,16 @@ func assertRequiredParametersSet(c *Config, errs *packer.MultiError) {
 		}
 	} else if c.ImageUrl == "" && c.ImagePublisher == "" {
 		if c.CustomManagedImageResourceGroupName == "" {
-			errs = packer.MultiErrorAppend(errs, fmt.Errorf("An custom_managed_image_resource_group_name must be specified"))
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("A custom_managed_image_resource_group_name must be specified"))
 		}
 		if c.CustomManagedImageName == "" {
 			errs = packer.MultiErrorAppend(errs, fmt.Errorf("A custom_managed_image_name must be specified"))
 		}
 		if c.ManagedImageResourceGroupName == "" {
-			errs = packer.MultiErrorAppend(errs, fmt.Errorf("An managed_image_resource_group_name must be specified"))
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("A managed_image_resource_group_name must be specified"))
 		}
 		if c.ManagedImageName == "" {
-			errs = packer.MultiErrorAppend(errs, fmt.Errorf("An managed_image_name must be specified"))
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("A managed_image_name must be specified"))
 		}
 	} else {
 		if c.ImagePublisher != "" || c.ImageOffer != "" || c.ImageSku != "" || c.ImageVersion != "" {
@@ -623,6 +635,25 @@ func assertRequiredParametersSet(c *Config, errs *packer.MultiError) {
 		if ok, err := assertManagedImageName(c.ManagedImageName, "managed_image_name"); !ok {
 			errs = packer.MultiErrorAppend(errs, err)
 		}
+	}
+
+	if c.ManagedImageName != "" && c.ManagedImageResourceGroupName != "" && c.SharedGalleryDestination.SigDestinationGalleryName != "" {
+		if c.SharedGalleryDestination.SigDestinationResourceGroup == "" {
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("A resource_group must be specified for shared_image_gallery_destination"))
+		}
+		if c.SharedGalleryDestination.SigDestinationImageName == "" {
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("An image_name must be specified for shared_image_gallery_destination"))
+		}
+		if c.SharedGalleryDestination.SigDestinationImageVersion == "" {
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("An image_version must be specified for shared_image_gallery_destination"))
+		}
+		if len(c.SharedGalleryDestination.SigDestinationReplicationRegions) == 0 {
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("A list of replication_regions must be specified for shared_image_gallery_destination"))
+		}
+	}
+	if c.SharedGalleryTimeout == 0 {
+		// default to a one-hour timeout. In the sdk, the default is 15 m.
+		c.SharedGalleryTimeout = 60 * time.Minute
 	}
 
 	if c.ManagedImageOSDiskSnapshotName != "" {

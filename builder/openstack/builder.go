@@ -97,6 +97,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			SourceImageName:  b.config.RunConfig.SourceImageName,
 			SourceImageOpts:  b.config.RunConfig.sourceImageOpts,
 			SourceMostRecent: b.config.SourceImageFilters.MostRecent,
+			SourceProperties: b.config.SourceImageFilters.Filters.Properties,
 		},
 		&StepCreateVolume{
 			UseBlockStorageVolume:  b.config.UseBlockStorageVolume,
@@ -125,16 +126,18 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			Wait: b.config.RackconnectWait,
 		},
 		&StepAllocateIp{
-			FloatingIPNetwork: b.config.FloatingIPNetwork,
-			FloatingIP:        b.config.FloatingIP,
-			ReuseIPs:          b.config.ReuseIPs,
+			FloatingIPNetwork:     b.config.FloatingIPNetwork,
+			FloatingIP:            b.config.FloatingIP,
+			ReuseIPs:              b.config.ReuseIPs,
+			InstanceFloatingIPNet: b.config.InstanceFloatingIPNet,
 		},
 		&communicator.StepConnect{
 			Config: &b.config.RunConfig.Comm,
 			Host: CommHost(
+				b.config.RunConfig.Comm.SSHHost,
 				computeClient,
-				b.config.Comm.SSHInterface,
-				b.config.Comm.SSHIPVersion),
+				b.config.SSHInterface,
+				b.config.SSHIPVersion),
 			SSHConfig: b.config.RunConfig.Comm.SSHConfigFunc(),
 		},
 		&common.StepProvision{},
@@ -151,6 +154,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		&stepUpdateImageTags{},
 		&stepUpdateImageVisibility{},
 		&stepAddImageMembers{},
+		&stepUpdateImageMinDisk{},
 	}
 
 	// Run!

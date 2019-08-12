@@ -27,13 +27,6 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 
 func (p *Provisioner) Provision(ctx context.Context, ui packer.Ui, _ packer.Communicator) error {
 	_, retErr := sl.Run(ctx, ui, &p.config)
-	if retErr != nil {
-		return retErr
-	}
 
-	return nil
-}
-
-func (p *Provisioner) Cancel() {
-	// Just do nothing. When the process ends, so will our provisioner
+	return retErr
 }

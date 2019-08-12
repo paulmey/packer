@@ -73,6 +73,7 @@ type RunConfig struct {
 	SecurityGroupIds                  []string                   `mapstructure:"security_group_ids"`
 	SourceAmi                         string                     `mapstructure:"source_ami"`
 	SourceAmiFilter                   AmiFilterOptions           `mapstructure:"source_ami_filter"`
+	SpotInstanceTypes                 []string                   `mapstructure:"spot_instance_types"`
 	SpotPrice                         string                     `mapstructure:"spot_price"`
 	SpotPriceAutoProduct              string                     `mapstructure:"spot_price_auto_product"`
 	SpotTags                          map[string]string          `mapstructure:"spot_tags"`
@@ -87,7 +88,8 @@ type RunConfig struct {
 	WindowsPasswordTimeout            time.Duration              `mapstructure:"windows_password_timeout"`
 
 	// Communicator settings
-	Comm communicator.Config `mapstructure:",squash"`
+	Comm         communicator.Config `mapstructure:",squash"`
+	SSHInterface string              `mapstructure:"ssh_interface"`
 }
 
 func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
@@ -113,12 +115,12 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 	errs := c.Comm.Prepare(ctx)
 
 	// Validating ssh_interface
-	if c.Comm.SSHInterface != "public_ip" &&
-		c.Comm.SSHInterface != "private_ip" &&
-		c.Comm.SSHInterface != "public_dns" &&
-		c.Comm.SSHInterface != "private_dns" &&
-		c.Comm.SSHInterface != "" {
-		errs = append(errs, fmt.Errorf("Unknown interface type: %s", c.Comm.SSHInterface))
+	if c.SSHInterface != "public_ip" &&
+		c.SSHInterface != "private_ip" &&
+		c.SSHInterface != "public_dns" &&
+		c.SSHInterface != "private_dns" &&
+		c.SSHInterface != "" {
+		errs = append(errs, fmt.Errorf("Unknown interface type: %s", c.SSHInterface))
 	}
 
 	if c.Comm.SSHKeyPairName != "" {
@@ -137,27 +139,19 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 		errs = append(errs, fmt.Errorf("For security reasons, your source AMI filter must declare an owner."))
 	}
 
-	if c.InstanceType == "" {
-		errs = append(errs, fmt.Errorf("An instance_type must be specified"))
+	if c.InstanceType == "" && len(c.SpotInstanceTypes) == 0 {
+		errs = append(errs, fmt.Errorf("either instance_type or "+
+			"spot_instance_types must be specified"))
+	}
+
+	if c.InstanceType != "" && len(c.SpotInstanceTypes) > 0 {
+		errs = append(errs, fmt.Errorf("either instance_type or "+
+			"spot_instance_types must be specified, not both"))
 	}
 
 	if c.BlockDurationMinutes%60 != 0 {
 		errs = append(errs, fmt.Errorf(
 			"block_duration_minutes must be multiple of 60"))
-	}
-
-	if c.SpotPrice == "auto" {
-		if c.SpotPriceAutoProduct == "" {
-			errs = append(errs, fmt.Errorf(
-				"spot_price_auto_product must be specified when spot_price is auto"))
-		}
-	}
-
-	if c.SpotPriceAutoProduct != "" {
-		if c.SpotPrice != "auto" {
-			errs = append(errs, fmt.Errorf(
-				"spot_price should be set to auto when spot_price_auto_product is specified"))
-		}
 	}
 
 	if c.SpotTags != nil {

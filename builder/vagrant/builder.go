@@ -50,9 +50,6 @@ type Config struct {
 
 	Communicator string `mapstructure:"communicator"`
 
-	// What vagrantfile to use
-	VagrantfileTpl string `mapstructure:"vagrantfile_template"`
-
 	// Whether to Halt, Suspend, or Destroy the box
 	TeardownMethod string `mapstructure:"teardown_method"`
 
@@ -202,7 +199,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		&StepCreateVagrantfile{
 			Template:     b.config.Template,
 			SyncedFolder: b.config.SyncedFolder,
-			SourceBox:    b.config.SourceBox,
+			BoxName:      b.config.BoxName,
 			OutputDir:    b.config.OutputDir,
 			GlobalID:     b.config.GlobalID,
 		},

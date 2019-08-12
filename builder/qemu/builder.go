@@ -96,34 +96,37 @@ type Config struct {
 	Comm                  communicator.Config `mapstructure:",squash"`
 	common.FloppyConfig   `mapstructure:",squash"`
 
-	ISOSkipCache      bool       `mapstructure:"iso_skip_cache"`
-	Accelerator       string     `mapstructure:"accelerator"`
-	CpuCount          int        `mapstructure:"cpus"`
-	DiskInterface     string     `mapstructure:"disk_interface"`
-	DiskSize          uint       `mapstructure:"disk_size"`
-	DiskCache         string     `mapstructure:"disk_cache"`
-	DiskDiscard       string     `mapstructure:"disk_discard"`
-	DetectZeroes      string     `mapstructure:"disk_detect_zeroes"`
-	SkipCompaction    bool       `mapstructure:"skip_compaction"`
-	DiskCompression   bool       `mapstructure:"disk_compression"`
-	Format            string     `mapstructure:"format"`
-	Headless          bool       `mapstructure:"headless"`
-	DiskImage         bool       `mapstructure:"disk_image"`
-	UseBackingFile    bool       `mapstructure:"use_backing_file"`
-	MachineType       string     `mapstructure:"machine_type"`
-	MemorySize        int        `mapstructure:"memory"`
-	NetDevice         string     `mapstructure:"net_device"`
-	OutputDir         string     `mapstructure:"output_directory"`
-	QemuArgs          [][]string `mapstructure:"qemuargs"`
-	QemuBinary        string     `mapstructure:"qemu_binary"`
-	ShutdownCommand   string     `mapstructure:"shutdown_command"`
-	SSHHostPortMin    int        `mapstructure:"ssh_host_port_min"`
-	SSHHostPortMax    int        `mapstructure:"ssh_host_port_max"`
-	UseDefaultDisplay bool       `mapstructure:"use_default_display"`
-	VNCBindAddress    string     `mapstructure:"vnc_bind_address"`
-	VNCPortMin        int        `mapstructure:"vnc_port_min"`
-	VNCPortMax        int        `mapstructure:"vnc_port_max"`
-	VMName            string     `mapstructure:"vm_name"`
+	ISOSkipCache       bool       `mapstructure:"iso_skip_cache"`
+	Accelerator        string     `mapstructure:"accelerator"`
+	CpuCount           int        `mapstructure:"cpus"`
+	AdditionalDiskSize []string   `mapstructure:"disk_additional_size"`
+	DiskInterface      string     `mapstructure:"disk_interface"`
+	DiskSize           uint       `mapstructure:"disk_size"`
+	DiskCache          string     `mapstructure:"disk_cache"`
+	DiskDiscard        string     `mapstructure:"disk_discard"`
+	DetectZeroes       string     `mapstructure:"disk_detect_zeroes"`
+	SkipCompaction     bool       `mapstructure:"skip_compaction"`
+	DiskCompression    bool       `mapstructure:"disk_compression"`
+	Format             string     `mapstructure:"format"`
+	Headless           bool       `mapstructure:"headless"`
+	DiskImage          bool       `mapstructure:"disk_image"`
+	UseBackingFile     bool       `mapstructure:"use_backing_file"`
+	MachineType        string     `mapstructure:"machine_type"`
+	MemorySize         int        `mapstructure:"memory"`
+	NetDevice          string     `mapstructure:"net_device"`
+	OutputDir          string     `mapstructure:"output_directory"`
+	QemuArgs           [][]string `mapstructure:"qemuargs"`
+	QemuBinary         string     `mapstructure:"qemu_binary"`
+	QMPSocketPath      string     `mapstructure:"qmp_socket_path"`
+	ShutdownCommand    string     `mapstructure:"shutdown_command"`
+	SSHHostPortMin     int        `mapstructure:"ssh_host_port_min"`
+	SSHHostPortMax     int        `mapstructure:"ssh_host_port_max"`
+	UseDefaultDisplay  bool       `mapstructure:"use_default_display"`
+	VNCBindAddress     string     `mapstructure:"vnc_bind_address"`
+	VNCPortMin         int        `mapstructure:"vnc_port_min"`
+	VNCPortMax         int        `mapstructure:"vnc_port_max"`
+	VNCUsePassword     bool       `mapstructure:"vnc_use_password"`
+	VMName             string     `mapstructure:"vm_name"`
 
 	// These are deprecated, but we keep them around for BC
 	// TODO(@mitchellh): remove
@@ -286,6 +289,11 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 			errs, errors.New("use_backing_file can only be enabled for QCOW2 images and when disk_image is true"))
 	}
 
+	if b.config.DiskImage && len(b.config.AdditionalDiskSize) > 0 {
+		errs = packer.MultiErrorAppend(
+			errs, errors.New("disk_additional_size can only be used when disk_image is false"))
+	}
+
 	if _, ok := accels[b.config.Accelerator]; !ok {
 		errs = packer.MultiErrorAppend(
 			errs, errors.New("invalid accelerator, only 'kvm', 'tcg', 'xen', 'hax', 'hvf', 'whpx', or 'none' are allowed"))
@@ -338,6 +346,7 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 		errs = packer.MultiErrorAppend(
 			errs, errors.New("ssh_host_port_min must be less than ssh_host_port_max"))
 	}
+
 	if b.config.SSHHostPortMin < 0 {
 		errs = packer.MultiErrorAppend(
 			errs, errors.New("ssh_host_port_min must be positive"))
@@ -346,6 +355,11 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	if b.config.VNCPortMin > b.config.VNCPortMax {
 		errs = packer.MultiErrorAppend(
 			errs, fmt.Errorf("vnc_port_min must be less than vnc_port_max"))
+	}
+
+	if b.config.VNCUsePassword && b.config.QMPSocketPath == "" {
+		socketName := fmt.Sprintf("%s.monitor", b.config.VMName)
+		b.config.QMPSocketPath = filepath.Join(b.config.OutputDir, socketName)
 	}
 
 	if b.config.QemuArgs == nil {
@@ -419,6 +433,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	steps = append(steps,
 		new(stepConfigureVNC),
 		steprun,
+		new(stepConfigureQMP),
 		&stepTypeBootCommand{},
 	)
 
@@ -426,7 +441,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		steps = append(steps,
 			&communicator.StepConnect{
 				Config:    &b.config.Comm,
-				Host:      commHost,
+				Host:      commHost(b.config.Comm.SSHHost),
 				SSHConfig: b.config.Comm.SSHConfigFunc(),
 				SSHPort:   commPort,
 				WinRMPort: commPort,
@@ -500,7 +515,11 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		state: make(map[string]interface{}),
 	}
 
-	artifact.state["diskName"] = state.Get("disk_filename").(string)
+	artifact.state["diskName"] = b.config.VMName
+	diskpaths, ok := state.Get("qemu_disk_paths").([]string)
+	if ok {
+		artifact.state["diskPaths"] = diskpaths
+	}
 	artifact.state["diskType"] = b.config.Format
 	artifact.state["diskSize"] = uint64(b.config.DiskSize)
 	artifact.state["domainType"] = b.config.Accelerator

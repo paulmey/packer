@@ -100,42 +100,9 @@ builder.
     on the type of VM you use. The block device mappings allow for the
     following configuration:
 
-    -   `delete_on_termination` (boolean) - Indicates whether the EBS volume is
-        deleted on instance termination. Default `false`. **NOTE**: If this
-        value is not explicitly set to `true` and volumes are not cleaned up by
-        an alternative method, additional volumes will accumulate after every
-        build.
+    <%= partial "partials/builders/aws-common-block-device-a-i" %>
 
-    -   `device_name` (string) - The device name exposed to the instance (for
-        example, `/dev/sdh` or `xvdh`). Required for every device in the block
-        device mapping.
-
-    -   `encrypted` (boolean) - Indicates whether or not to encrypt the volume.
-        By default, Packer will keep the encryption setting to what it was in
-        the source image. Setting `false` will result in an unencrypted device,
-        and `true` will result in an encrypted one.
-
-    -   `iops` (number) - The number of I/O operations per second (IOPS) that
-        the volume supports. See the documentation on
-        [IOPs](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_EbsBlockDevice.html)
-        for more information
-
-    -   `no_device` (boolean) - Suppresses the specified device included in the
-        block device mapping of the AMI
-
-    -   `snapshot_id` (string) - The ID of the snapshot
-
-    -   `virtual_name` (string) - The virtual device name. See the
-        documentation on [Block Device
-        Mapping](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_BlockDeviceMapping.html)
-        for more information
-
-    -   `volume_size` (number) - The size of the volume, in GiB. Required if
-        not specifying a `snapshot_id`
-
-    -   `volume_type` (string) - The volume type. `gp2` for General Purpose
-        (SSD) volumes, `io1` for Provisioned IOPS (SSD) volumes, and `standard`
-        for Magnetic volumes
+    <%= partial "partials/builders/aws-common-block-device-i-v" %>
 
 -   `ami_description` (string) - The description to set for the resulting
     AMI(s). By default this description is empty. This is a [template
@@ -164,8 +131,8 @@ builder.
     `paravirtual` (default) or `hvm`.
 
 -   `associate_public_ip_address` (boolean) - If using a non-default VPC,
-    public IP addresses are not provided by default. If this is toggled, your
-    new instance will get a Public IP.
+    public IP addresses are not provided by default. If this is `true`, your
+    new instance will get a Public IP. default: `false`
 
 -   `availability_zone` (string) - Destination availability zone to launch
     instance in. Leave this empty to allow Amazon to auto-assign.
@@ -280,6 +247,10 @@ builder.
     *KmsKeyId* in the [AWS API docs -
     CopyImage](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CopyImage.html).
 
+    This option supercedes the `kms_key_id` option -- if you set both, and they
+    are different, Packer will respect the value in `region_kms_key_ids` for
+    your build region and silently disregard the value provided in `kms_key_id`.
+
 -   `run_tags` (object of key/value strings) - Tags to apply to the instance
     that is *launched* to create the AMI. These tags are *not* applied to the
     resulting AMI unless they're duplicated in `tags`. This is a [template
@@ -376,22 +347,7 @@ builder.
 -   `snapshot_tags` (object of key/value strings) - Tags to apply to snapshot.
     They will override AMI tags if already applied to snapshot.
 
--   `spot_price` (string) - The maximum hourly price to launch a spot instance
-    to create the AMI. It is a type of instances that EC2 starts when the
-    maximum price that you specify exceeds the current spot price. Spot price
-    will be updated based on available spot instance capacity and current spot
-    Instance requests. It may save you some costs. You can set this to `auto`
-    for Packer to automatically discover the best spot price or to `0` to use
-    an on-demand instance (default).
-
--   `spot_price_auto_product` (string) - Required if `spot_price` is set to
-    `auto`. This tells Packer what sort of AMI you're launching to find the
-    best spot price. This must be one of: `Linux/UNIX`, `SUSE Linux`,
-    `Windows`, `Linux/UNIX (Amazon VPC)`, `SUSE Linux (Amazon VPC)`,
-    `Windows (Amazon VPC)`
-
--   `spot_tags` (object of key/value strings) - Requires `spot_price` to be
-    set. This tells Packer to apply tags to the spot request that is issued.
+<%= partial "partials/builders/aws-spot-docs" %>
 
 -   `sriov_support` (boolean) - Enable enhanced networking (SriovNetSupport but
     not ENA) on HVM-compatible AMIs. If true, add `ec2:ModifyInstanceAttribute`

@@ -45,7 +45,7 @@ one, by using `global_id` instead of `source_box`.
 -  `global_id` (string) - the global id of a Vagrant box already added to Vagrant
    on your system. You can find the global id of your Vagrant boxes using the
    command `vagrant global-status`; your global_id will be a 7-digit number and
-   letter comination that you'll find in the leftmost column of the
+   letter combination that you'll find in the leftmost column of the
    global-status output.  If you choose to use `global_id` instead of
    `source_box`, Packer will skip the Vagrant initialize and add steps, and
    simply launch the box directly using the global id.
@@ -62,7 +62,7 @@ one, by using `global_id` instead of `source_box`.
     "packer_" plus your buildname.
 
 -   `provider` (string) - The vagrant [provider](docs/post-processors/vagrant.html).
-    This parameter is required when `source_path` have more than one provider, 
+    This parameter is required when `source_path` have more than one provider,
     or when using `vagrant-cloud` post-processor. Defaults to unset.
 
 -   `checksum` (string) - The checksum for the .box file. The type of the
@@ -126,6 +126,14 @@ one, by using `global_id` instead of `source_box`.
 -   `skip_package` (bool) - if true, Packer will not call `vagrant package` to
     package your base box into its own standalone .box file.
 
+-   `output_vagrantfile` (string) - Equivalent to setting the
+    [`--vagrantfile`](https://www.vagrantup.com/docs/cli/package.html#vagrantfile-file) option
+    in `vagrant package`; defaults to unset
+
+-   `package_include` (string) - Equivalent to setting the
+    [`--include`](https://www.vagrantup.com/docs/cli/package.html#include-x-y-z) option
+    in `vagrant package`; defaults to unset
+
 ## Example
 
 Sample for `hashicorp/precise64` with virtualbox provider.
@@ -143,3 +151,19 @@ Sample for `hashicorp/precise64` with virtualbox provider.
   ]
 }
 ```
+
+
+## A note on SSH connections
+
+Currently this builder only works for SSH connections, and automatically fills
+in all information needed for the ssh communicator using vagrant's ssh-config.
+
+If you would like to connect via a different username or authentication method
+than is produced when you call `vagrant ssh-config`, then you must provide the
+
+`ssh_username` and all other relevant authentication information (e.g.
+`ssh_password` or `ssh_private_key_file`)
+
+By providing the `ssh_username`, you're telling Packer not to use the vagrant
+ssh config, except for determining the host and port for the virtual machine to
+connect to.

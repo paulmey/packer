@@ -80,6 +80,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		b.config.ResourceGroupName,
 		b.config.StorageAccount,
 		b.config.ClientConfig.CloudEnvironment,
+		b.config.SharedGalleryTimeout,
 		spnCloud,
 		spnKeyVault)
 
@@ -116,7 +117,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 				ui.Say(fmt.Sprintf("the managed image named %s already exists, but deleting it due to -force flag", b.config.ManagedImageName))
 				f, err := azureClient.ImagesClient.Delete(ctx, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName)
 				if err == nil {
-					err = f.WaitForCompletion(ctx, azureClient.ImagesClient.Client)
+					err = f.WaitForCompletionRef(ctx, azureClient.ImagesClient.Client)
 				}
 				if err != nil {
 					return nil, fmt.Errorf("failed to delete the managed image named %s : %s", b.config.ManagedImageName, azureClient.LastError.Error())
@@ -167,6 +168,31 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 
 	deploymentName := b.stateBag.Get(constants.ArmDeploymentName).(string)
 
+	// For Managed Images, validate that Shared Gallery Image exists before publishing to SIG
+	if b.config.isManagedImage() && b.config.SharedGalleryDestination.SigDestinationGalleryName != "" {
+		_, err = azureClient.GalleryImagesClient.Get(ctx, b.config.SharedGalleryDestination.SigDestinationResourceGroup, b.config.SharedGalleryDestination.SigDestinationGalleryName, b.config.SharedGalleryDestination.SigDestinationImageName)
+		if err != nil {
+			return nil, fmt.Errorf("the Shared Gallery Image to which to publish the managed image version to does not exist in the resource group %s", b.config.SharedGalleryDestination.SigDestinationResourceGroup)
+		}
+		// SIG requires that replication regions include the region in which the Managed Image resides
+		managedImageLocation := normalizeAzureRegion(b.stateBag.Get(constants.ArmLocation).(string))
+		foundMandatoryReplicationRegion := false
+		var normalizedReplicationRegions []string
+		for _, region := range b.config.SharedGalleryDestination.SigDestinationReplicationRegions {
+			// change region to lower-case and strip spaces
+			normalizedRegion := normalizeAzureRegion(region)
+			normalizedReplicationRegions = append(normalizedReplicationRegions, normalizedRegion)
+			if strings.EqualFold(normalizedRegion, managedImageLocation) {
+				foundMandatoryReplicationRegion = true
+				continue
+			}
+		}
+		if foundMandatoryReplicationRegion == false {
+			b.config.SharedGalleryDestination.SigDestinationReplicationRegions = append(normalizedReplicationRegions, managedImageLocation)
+		}
+		b.stateBag.Put(constants.ArmManagedImageSharedGalleryReplicationRegions, b.config.SharedGalleryDestination.SigDestinationReplicationRegions)
+	}
+
 	if b.config.OSType == constants.Target_Linux {
 		steps = []multistep.Step{
 			NewStepCreateResourceGroup(azureClient, ui),
@@ -188,6 +214,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			NewStepSnapshotOSDisk(azureClient, ui, b.config),
 			NewStepSnapshotDataDisks(azureClient, ui, b.config),
 			NewStepCaptureImage(azureClient, ui),
+			NewStepPublishToSharedImageGallery(azureClient, ui, b.config),
 			NewStepDeleteResourceGroup(azureClient, ui),
 			NewStepDeleteOSDisk(azureClient, ui),
 			NewStepDeleteAdditionalDisks(azureClient, ui),
@@ -226,6 +253,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 			NewStepSnapshotOSDisk(azureClient, ui, b.config),
 			NewStepSnapshotDataDisks(azureClient, ui, b.config),
 			NewStepCaptureImage(azureClient, ui),
+			NewStepPublishToSharedImageGallery(azureClient, ui, b.config),
 			NewStepDeleteResourceGroup(azureClient, ui),
 			NewStepDeleteOSDisk(azureClient, ui),
 			NewStepDeleteAdditionalDisks(azureClient, ui),
@@ -264,8 +292,10 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	}
 
 	if b.config.isManagedImage() {
-		managedImageID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s",
-			b.config.ClientConfig.SubscriptionID, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName)
+		managedImageID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s", b.config.ClientConfig.SubscriptionID, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName)
+		if b.config.SharedGalleryDestination.SigDestinationGalleryName != "" {
+			return NewManagedImageArtifactWithSIGAsDestination(b.config.OSType, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName, b.config.manageImageLocation, managedImageID, b.config.ManagedImageOSDiskSnapshotName, b.config.ManagedImageDataDiskSnapshotPrefix, b.stateBag.Get(constants.ArmManagedImageSharedGalleryId).(string))
+		}
 		return NewManagedImageArtifact(b.config.OSType, b.config.ManagedImageResourceGroupName, b.config.ManagedImageName, b.config.manageImageLocation, managedImageID, b.config.ManagedImageOSDiskSnapshotName, b.config.ManagedImageDataDiskSnapshotPrefix)
 	} else if template, ok := b.stateBag.GetOk(constants.ArmCaptureTemplate); ok {
 		return NewArtifact(
@@ -360,6 +390,13 @@ func (b *Builder) configureStateBag(stateBag multistep.StateBag) {
 	stateBag.Put(constants.ArmManagedImageOSDiskSnapshotName, b.config.ManagedImageOSDiskSnapshotName)
 	stateBag.Put(constants.ArmManagedImageDataDiskSnapshotPrefix, b.config.ManagedImageDataDiskSnapshotPrefix)
 	stateBag.Put(constants.ArmAsyncResourceGroupDelete, b.config.AsyncResourceGroupDelete)
+	if b.config.isManagedImage() && b.config.SharedGalleryDestination.SigDestinationGalleryName != "" {
+		stateBag.Put(constants.ArmManagedImageSigPublishResourceGroup, b.config.SharedGalleryDestination.SigDestinationResourceGroup)
+		stateBag.Put(constants.ArmManagedImageSharedGalleryName, b.config.SharedGalleryDestination.SigDestinationGalleryName)
+		stateBag.Put(constants.ArmManagedImageSharedGalleryImageName, b.config.SharedGalleryDestination.SigDestinationImageName)
+		stateBag.Put(constants.ArmManagedImageSharedGalleryImageVersion, b.config.SharedGalleryDestination.SigDestinationImageVersion)
+		stateBag.Put(constants.ArmManagedImageSubscription, b.config.ClientConfig.SubscriptionID)
+	}
 }
 
 // Parameters that are only known at runtime after querying Azure.
@@ -394,4 +431,8 @@ func getObjectIdFromToken(ui packer.Ui, token *adal.ServicePrincipalToken) strin
 	}
 	return claims["oid"].(string)
 
+}
+
+func normalizeAzureRegion(name string) string {
+	return strings.ToLower(strings.Replace(name, " ", "", -1))
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -66,6 +67,8 @@ type Config struct {
 	ElevatedUser     string `mapstructure:"elevated_user"`
 	ElevatedPassword string `mapstructure:"elevated_password"`
 
+	ExecutionPolicy ExecutionPolicy `mapstructure:"execution_policy"`
+
 	ctx interpolate.Context
 }
 
@@ -84,6 +87,17 @@ type EnvVarsTemplate struct {
 	WinRMPassword string
 }
 
+func (p *Provisioner) defaultExecuteCommand() string {
+	baseCmd := `& { if (Test-Path variable:global:ProgressPreference)` +
+		`{set-variable -name variable:global:ProgressPreference -value 'SilentlyContinue'};` +
+		`. {{.Vars}}; &'{{.Path}}'; exit $LastExitCode }`
+	if p.config.ExecutionPolicy == ExecutionPolicyNone {
+		return baseCmd
+	} else {
+		return fmt.Sprintf(`powershell -executionpolicy %s "%s"`, p.config.ExecutionPolicy, baseCmd)
+	}
+}
+
 func (p *Provisioner) Prepare(raws ...interface{}) error {
 	// Create passthrough for winrm password so we can fill it in once we know
 	// it
@@ -100,6 +114,7 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 				"elevated_execute_command",
 			},
 		},
+		DecodeHooks: append(config.DefaultDecodeHookFuncs, StringToExecutionPolicyHook),
 	}, raws...)
 
 	if err != nil {
@@ -115,11 +130,11 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	}
 
 	if p.config.ExecuteCommand == "" {
-		p.config.ExecuteCommand = `powershell -executionpolicy bypass "& { if (Test-Path variable:global:ProgressPreference){set-variable -name variable:global:ProgressPreference -value 'SilentlyContinue'};. {{.Vars}}; &'{{.Path}}'; exit $LastExitCode }"`
+		p.config.ExecuteCommand = p.defaultExecuteCommand()
 	}
 
 	if p.config.ElevatedExecuteCommand == "" {
-		p.config.ElevatedExecuteCommand = `powershell -executionpolicy bypass "& { if (Test-Path variable:global:ProgressPreference){set-variable -name variable:global:ProgressPreference -value 'SilentlyContinue'};. {{.Vars}}; &'{{.Path}}'; exit $LastExitCode }"`
+		p.config.ElevatedExecuteCommand = p.defaultExecuteCommand()
 	}
 
 	if p.config.Inline != nil && len(p.config.Inline) == 0 {
@@ -238,6 +253,14 @@ func (p *Provisioner) Provision(ctx context.Context, ui packer.Ui, comm packer.C
 		ui.Say(fmt.Sprintf("Provisioning with powershell script: %s", path))
 
 		log.Printf("Opening %s for reading", path)
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("Error stating powershell script: %s", err)
+		}
+		if strings.HasSuffix(p.config.RemotePath, `\`) {
+			// path is a directory
+			p.config.RemotePath += filepath.Base((fi).Name())
+		}
 		f, err := os.Open(path)
 		if err != nil {
 			return fmt.Errorf("Error opening powershell script: %s", err)
@@ -254,11 +277,11 @@ func (p *Provisioner) Provision(ctx context.Context, ui packer.Ui, comm packer.C
 		// that the upload succeeded, a restart is initiated, and then the
 		// command is executed but the file doesn't exist any longer.
 		var cmd *packer.RemoteCmd
-		retry.Config{StartTimeout: p.config.StartRetryTimeout}.Run(ctx, func(ctx context.Context) error {
+		err = retry.Config{StartTimeout: p.config.StartRetryTimeout}.Run(ctx, func(ctx context.Context) error {
 			if _, err := f.Seek(0, 0); err != nil {
 				return err
 			}
-			if err := comm.Upload(p.config.RemotePath, f, nil); err != nil {
+			if err := comm.Upload(p.config.RemotePath, f, &fi); err != nil {
 				return fmt.Errorf("Error uploading script: %s", err)
 			}
 
@@ -272,18 +295,14 @@ func (p *Provisioner) Provision(ctx context.Context, ui packer.Ui, comm packer.C
 		// Close the original file since we copied it
 		f.Close()
 
+		log.Printf("%s returned with exit code %d", p.config.RemotePath, cmd.ExitStatus())
+
 		if err := p.config.ValidExitCode(cmd.ExitStatus()); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func (p *Provisioner) Cancel() {
-	// Just hard quit. It isn't a big deal if what we're doing keeps running
-	// on the other side.
-	os.Exit(0)
 }
 
 // Environment variables required within the remote environment are uploaded
