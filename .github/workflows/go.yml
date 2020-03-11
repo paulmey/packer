@@ -26,4 +26,5 @@ jobs:
       run: |
         export GOPATH=`pwd`
         cd src/github.com/hashicorp/packer
+        touch /dev/tty
         make ci
