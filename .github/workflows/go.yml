@@ -23,6 +23,8 @@ jobs:
     - name: Huh?
       run: |
         echo $GOPATH
+        pwd
+        ls -al
 
     - name: Build
       run: make ci
