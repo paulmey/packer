@@ -25,12 +25,12 @@ import (
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
-// BuilderId is the unique ID for this builder
-const BuilderId = "azure.chroot"
+// BuilderID is the unique ID for this builder
+const BuilderID = "azure.chroot"
 
 // Config is the configuration that is chained through the steps and settable
 // from the template.
@@ -75,9 +75,8 @@ type Config struct {
 	// `/etc/resolv.conf`. You may need to do this if you're building an image that uses systemd.
 	CopyFiles []string `mapstructure:"copy_files"`
 
-	// The name of the temporary disk that will be created in the resource group of the VM that Packer is
-	// running on. Will be generated if not set.
-	TemporaryOSDiskName string `mapstructure:"temporary_os_disk_name"`
+	// The id of the temporary disk that will be created. Will be generated if not set.
+	TemporaryOSDiskID string `mapstructure:"temporary_os_disk_id"`
 	// Try to resize the OS disk to this size on the first copy. Disks can only be englarged. If not specified,
 	// the disk will keep its original size. Required when using `from_scratch`
 	OSDiskSizeGB int32 `mapstructure:"os_disk_size_gb"`
@@ -87,14 +86,19 @@ type Config struct {
 	// The [cache type](https://docs.microsoft.com/en-us/rest/api/compute/images/createorupdate#cachingtypes)
 	// specified in the resulting image and for attaching it to the Packer VM. Defaults to `ReadOnly`
 	OSDiskCacheType string `mapstructure:"os_disk_cache_type"`
-	// If set to `true`, leaves the temporary disk behind in the Packer VM resource group. Defaults to `false`
-	OSDiskSkipCleanup bool `mapstructure:"os_disk_skip_cleanup"`
+
+	// The id of the temporary snapshot that will be created. Will be generated if not set.
+	TemporaryOSDiskSnapshotID string `mapstructure:"temporary_os_disk_snapshot_id"`
 
 	// The image to create using this build.
-	ImageResourceID string `mapstructure:"image_resource_id" required:"true"`
+	SharedImageGalleryDestination SharedImageGalleryDestination `mapstructure:"shared_image_destination"`
+
 	// The [Hyper-V generation type](https://docs.microsoft.com/en-us/rest/api/compute/images/createorupdate#hypervgenerationtypes).
 	// Defaults to `V1`.
 	ImageHyperVGeneration string `mapstructure:"image_hyperv_generation"`
+
+	// If set to `true`, leaves the temporary disks and snapshots behind in the Packer VM resource group. Defaults to `false`
+	SkipCleanup bool `mapstructure:"skip_cleanup"`
 
 	ctx interpolate.Context
 }
@@ -112,6 +116,7 @@ func (c *Config) GetContext() interpolate.Context {
 	return c.ctx
 }
 
+// Builder is the Azure chroot builder
 type Builder struct {
 	config Config
 	runner multistep.Runner
@@ -182,12 +187,23 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 		b.config.MountPartition = "1"
 	}
 
-	if b.config.TemporaryOSDiskName == "" {
-
-		if def, err := interpolate.Render("PackerTemp-{{timestamp}}", &b.config.ctx); err == nil {
-			b.config.TemporaryOSDiskName = def
+	if b.config.TemporaryOSDiskID == "" {
+		if def, err := interpolate.Render(
+			"/subscriptions/{{ vm `subscription_id` }}/resourceGroups/{{ vm `resource_group` }}/providers/Microsoft.Compute/disks/PackerTemp-osdisk-{{timestamp}}",
+			&b.config.ctx); err == nil {
+			b.config.TemporaryOSDiskID = def
 		} else {
 			errs = packer.MultiErrorAppend(errs, fmt.Errorf("unable to render temporary disk name: %s", err))
+		}
+	}
+
+	if b.config.TemporaryOSDiskSnapshotID == "" {
+		if def, err := interpolate.Render(
+			"/subscriptions/{{ vm `subscription_id` }}/resourceGroups/{{ vm `resource_group` }}/providers/Microsoft.Compute/snapshots/PackerTemp-osdisk-snapshot-{{timestamp}}",
+			&b.config.ctx); err == nil {
+			b.config.TemporaryOSDiskSnapshotID = def
+		} else {
+			errs = packer.MultiErrorAppend(errs, fmt.Errorf("unable to render temporary snapshot name: %s", err))
 		}
 	}
 
@@ -240,15 +256,13 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 		errs = packer.MultiErrorAppend(errs, fmt.Errorf("os_disk_storage_account_type: %v", err))
 	}
 
-	if b.config.ImageResourceID == "" {
-		errs = packer.MultiErrorAppend(errs, errors.New("image_resource_id is required"))
-	} else {
-		r, err := azure.ParseResourceID(b.config.ImageResourceID)
-		if err != nil ||
-			!strings.EqualFold(r.Provider, "Microsoft.Compute") ||
-			!strings.EqualFold(r.ResourceType, "images") {
-			errs = packer.MultiErrorAppend(fmt.Errorf(
-				"image_resource_id: %q is not a valid image resource id", b.config.ImageResourceID))
+	{
+		e, w := b.config.SharedImageGalleryDestination.Validate("shared_image_destination")
+		if len(e) > 0 {
+			errs = packer.MultiErrorAppend(errs, e...)
+		}
+		if len(w) > 0 {
+			warns = append(warns, w...)
 		}
 	}
 
@@ -351,7 +365,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	artifact := &azcommon.Artifact{
 		// TODO: paulmey - update
 		//Resources:      []string{b.config.ImageResourceID},
-		BuilderIdValue: BuilderId,
+		BuilderIdValue: BuilderID,
 		StateData:      map[string]interface{}{"generated_data": state.Get("generated_data")},
 	}
 
@@ -363,70 +377,74 @@ var _ packer.Builder = &Builder{}
 func buildsteps(config Config, info *client.ComputeInfo) []multistep.Step {
 	// Build the steps
 	var steps []multistep.Step
+	addSteps := func(s ...multistep.Step) { // convenience
+		steps = append(steps, s...)
+	}
+
+	// validate destination exists and is in right location
+	addSteps(
+		&StepVerifySharedImageDestination{
+			Image:    config.SharedImageGalleryDestination,
+			Location: info.Location,
+		},
+	)
 
 	if config.FromScratch {
-		steps = append(steps,
-			&StepCreateNewDisk{
-				SubscriptionID:         info.SubscriptionID,
-				ResourceGroup:          info.ResourceGroupName,
-				DiskName:               config.TemporaryOSDiskName,
-				DiskSizeGB:             config.OSDiskSizeGB,
-				DiskStorageAccountType: config.OSDiskStorageAccountType,
-				HyperVGeneration:       config.ImageHyperVGeneration,
-				Location:               info.Location,
-			})
+		addSteps(&StepCreateNewDisk{
+			ResourceID:             config.TemporaryOSDiskID,
+			DiskSizeGB:             config.OSDiskSizeGB,
+			DiskStorageAccountType: config.OSDiskStorageAccountType,
+			HyperVGeneration:       config.ImageHyperVGeneration,
+			Location:               info.Location})
 	} else {
 		switch config.sourceType {
 		case sourcePlatformImage:
 
 			if pi, err := client.ParsePlatformImageURN(config.Source); err == nil {
 				if strings.EqualFold(pi.Version, "latest") {
-					steps = append(steps, &StepResolvePlatformImageVersion{
-						PlatformImage: pi,
-						Location:      info.Location,
-					})
+					addSteps(
+						&StepResolvePlatformImageVersion{
+							PlatformImage: pi,
+							Location:      info.Location,
+						})
 				}
-				steps = append(steps,
+				addSteps(
 					&StepCreateNewDisk{
-						SubscriptionID:         info.SubscriptionID,
-						ResourceGroup:          info.ResourceGroupName,
-						DiskName:               config.TemporaryOSDiskName,
+						ResourceID:             config.TemporaryOSDiskID,
 						DiskSizeGB:             config.OSDiskSizeGB,
 						DiskStorageAccountType: config.OSDiskStorageAccountType,
 						HyperVGeneration:       config.ImageHyperVGeneration,
 						Location:               info.Location,
 						PlatformImage:          pi,
 
-						SkipCleanup: config.OSDiskSkipCleanup,
+						SkipCleanup: config.SkipCleanup,
 					})
 			} else {
 				panic("Unknown image source: " + config.Source)
 			}
 		case sourceDisk:
-			steps = append(steps,
+			addSteps(
 				&StepVerifySourceDisk{
 					SourceDiskResourceID: config.Source,
 					SubscriptionID:       info.SubscriptionID,
 					Location:             info.Location,
 				},
 				&StepCreateNewDisk{
-					SubscriptionID:         info.SubscriptionID,
-					ResourceGroup:          info.ResourceGroupName,
-					DiskName:               config.TemporaryOSDiskName,
+					ResourceID:             config.TemporaryOSDiskID,
 					DiskSizeGB:             config.OSDiskSizeGB,
 					DiskStorageAccountType: config.OSDiskStorageAccountType,
 					HyperVGeneration:       config.ImageHyperVGeneration,
 					SourceDiskResourceID:   config.Source,
 					Location:               info.Location,
 
-					SkipCleanup: config.OSDiskSkipCleanup,
+					SkipCleanup: config.SkipCleanup,
 				})
 		default:
 			panic(fmt.Errorf("Unknown source type: %+q", config.sourceType))
 		}
 	}
 
-	steps = append(steps,
+	addSteps(
 		&StepAttachDisk{}, // uses os_disk_resource_id and sets 'device' in stateBag
 		&chroot.StepPreMountCommands{
 			Commands: config.PreMountCommands,
@@ -447,13 +465,26 @@ func buildsteps(config Config, info *client.ComputeInfo) []multistep.Step {
 		},
 		&chroot.StepChrootProvision{},
 		&chroot.StepEarlyCleanup{},
-		&StepCreateImage{
-			ImageResourceID:          config.ImageResourceID,
-			ImageOSState:             string(compute.Generalized),
-			OSDiskCacheType:          config.OSDiskCacheType,
-			OSDiskStorageAccountType: config.OSDiskStorageAccountType,
-			Location:                 info.Location,
+
+		&StepCreateSnapshot{
+			ResourceID:  config.TemporaryOSDiskSnapshotID,
+			Location:    info.Location,
+			SkipCleanup: config.SkipCleanup,
 		},
+
+		&StepCreateSharedImageVersion{
+			Destination:     config.SharedImageGalleryDestination,
+			OSDiskCacheType: config.OSDiskCacheType,
+			Location:        info.Location,
+		},
+		// TODO: paulmey - remove
+		// &StepCreateImage{
+		// 	ImageResourceID:          config.ImageResourceID,
+		// 	ImageOSState:             string(compute.Generalized),
+		// 	OSDiskCacheType:          config.OSDiskCacheType,
+		// 	OSDiskStorageAccountType: config.OSDiskStorageAccountType,
+		// 	Location:                 info.Location,
+		// },
 	)
 
 	return steps

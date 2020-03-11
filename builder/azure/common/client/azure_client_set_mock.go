@@ -1,16 +1,21 @@
 package client
 
 import (
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute/computeapi"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute/computeapi"
 	"github.com/Azure/go-autorest/autorest"
 )
+
+var _ AzureClientSet = &AzureClientSetMock{}
 
 // AzureClientSetMock provides a generic mock for AzureClientSet
 type AzureClientSetMock struct {
 	DisksClientMock                computeapi.DisksClientAPI
+	SnapshotsClientMock            computeapi.SnapshotsClientAPI
 	ImagesClientMock               computeapi.ImagesClientAPI
 	VirtualMachineImagesClientMock VirtualMachineImagesClientAPI
 	VirtualMachinesClientMock      computeapi.VirtualMachinesClientAPI
+	GalleryImagesClientMock        computeapi.GalleryImagesClientAPI
+	GalleryImageVersionsClientMock computeapi.GalleryImageVersionsClientAPI
 	PollClientMock                 autorest.Client
 	MetadataClientMock             MetadataClientAPI
 }
@@ -18,6 +23,11 @@ type AzureClientSetMock struct {
 // DisksClient returns a DisksClientAPI
 func (m *AzureClientSetMock) DisksClient() computeapi.DisksClientAPI {
 	return m.DisksClientMock
+}
+
+// SnapshotsClient returns a SnapshotsClientAPI
+func (m *AzureClientSetMock) SnapshotsClient() computeapi.SnapshotsClientAPI {
+	return m.SnapshotsClientMock
 }
 
 // ImagesClient returns a ImagesClientAPI
@@ -33,6 +43,16 @@ func (m *AzureClientSetMock) VirtualMachineImagesClient() VirtualMachineImagesCl
 // VirtualMachinesClient returns a VirtualMachinesClientAPI
 func (m *AzureClientSetMock) VirtualMachinesClient() computeapi.VirtualMachinesClientAPI {
 	return m.VirtualMachinesClientMock
+}
+
+// GalleryImagesClient returns a GalleryImagesClientAPI
+func (m *AzureClientSetMock) GalleryImagesClient() computeapi.GalleryImagesClientAPI {
+	return m.GalleryImagesClientMock
+}
+
+// GalleryImageVersionsClient returns a GalleryImageVersionsClientAPI
+func (m *AzureClientSetMock) GalleryImageVersionsClient() computeapi.GalleryImageVersionsClientAPI {
+	return m.GalleryImageVersionsClientMock
 }
 
 // PollClient returns an autorest Client that can be used for polling async requests

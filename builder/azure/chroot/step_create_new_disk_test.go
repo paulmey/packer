@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/hashicorp/packer/builder/azure/common/client"
 	"github.com/hashicorp/packer/helper/multistep"
@@ -17,9 +17,7 @@ import (
 
 func TestStepCreateNewDisk_Run(t *testing.T) {
 	type fields struct {
-		SubscriptionID         string
-		ResourceGroup          string
-		DiskName               string
+		ResourceID             string
 		DiskSizeGB             int32
 		DiskStorageAccountType string
 		HyperVGeneration       string
@@ -37,9 +35,7 @@ func TestStepCreateNewDisk_Run(t *testing.T) {
 		{
 			name: "HappyPathDiskSource",
 			fields: fields{
-				SubscriptionID:         "SubscriptionID",
-				ResourceGroup:          "ResourceGroupName",
-				DiskName:               "TemporaryOSDiskName",
+				ResourceID:             "/subscriptions/SubscriptionID/resourcegroups/ResourceGroupName/providers/Microsoft.Compute/disks/TemporaryOSDiskName",
 				DiskSizeGB:             42,
 				DiskStorageAccountType: string(compute.PremiumLRS),
 				HyperVGeneration:       string(compute.V1),
@@ -68,9 +64,7 @@ func TestStepCreateNewDisk_Run(t *testing.T) {
 		{
 			name: "HappyPathDiskSource",
 			fields: fields{
-				SubscriptionID:         "SubscriptionID",
-				ResourceGroup:          "ResourceGroupName",
-				DiskName:               "TemporaryOSDiskName",
+				ResourceID:             "/subscriptions/SubscriptionID/resourcegroups/ResourceGroupName/providers/Microsoft.Compute/disks/TemporaryOSDiskName",
 				DiskStorageAccountType: string(compute.StandardLRS),
 				HyperVGeneration:       string(compute.V1),
 				Location:               "westus",
@@ -105,9 +99,7 @@ func TestStepCreateNewDisk_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := StepCreateNewDisk{
-				SubscriptionID:         tt.fields.SubscriptionID,
-				ResourceGroup:          tt.fields.ResourceGroup,
-				DiskName:               tt.fields.DiskName,
+				ResourceID:             tt.fields.ResourceID,
 				DiskSizeGB:             tt.fields.DiskSizeGB,
 				DiskStorageAccountType: tt.fields.DiskStorageAccountType,
 				HyperVGeneration:       tt.fields.HyperVGeneration,

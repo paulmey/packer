@@ -12,11 +12,13 @@ import (
 	"github.com/hashicorp/packer/packer"
 )
 
+// StepResolvePlatformImageVersion resolves the exact PIR version when the version is 'latest'
 type StepResolvePlatformImageVersion struct {
 	*client.PlatformImage
 	Location string
 }
 
+// Run retrieves all available versions of a PIR image and stores the latest in the PlatformImage
 func (pi *StepResolvePlatformImageVersion) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
 

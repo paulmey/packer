@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute/computeapi"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute/computeapi"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/hashicorp/packer/helper/useragent"
 )
@@ -15,7 +15,12 @@ type AzureClientSet interface {
 	MetadataClient() MetadataClientAPI
 
 	DisksClient() computeapi.DisksClientAPI
+	SnapshotsClient() computeapi.SnapshotsClientAPI
 	ImagesClient() computeapi.ImagesClientAPI
+
+	GalleryImagesClient() computeapi.GalleryImagesClientAPI
+	GalleryImageVersionsClient() computeapi.GalleryImageVersionsClientAPI
+
 	VirtualMachinesClient() computeapi.VirtualMachinesClientAPI
 	VirtualMachineImagesClient() VirtualMachineImagesClientAPI
 
@@ -70,6 +75,13 @@ func (s azureClientSet) DisksClient() computeapi.DisksClientAPI {
 	return c
 }
 
+func (s azureClientSet) SnapshotsClient() computeapi.SnapshotsClientAPI {
+	c := compute.NewSnapshotsClient(s.subscriptionID)
+	s.configureAutorestClient(&c.Client)
+	c.PollingDelay = s.PollingDelay
+	return c
+}
+
 func (s azureClientSet) ImagesClient() computeapi.ImagesClientAPI {
 	c := compute.NewImagesClient(s.subscriptionID)
 	s.configureAutorestClient(&c.Client)
@@ -89,6 +101,20 @@ func (s azureClientSet) VirtualMachineImagesClient() VirtualMachineImagesClientA
 	s.configureAutorestClient(&c.Client)
 	c.PollingDelay = s.PollingDelay
 	return virtualMachineImagesClientAPI{c}
+}
+
+func (s azureClientSet) GalleryImagesClient() computeapi.GalleryImagesClientAPI {
+	c := compute.NewGalleryImagesClient(s.subscriptionID)
+	s.configureAutorestClient(&c.Client)
+	c.PollingDelay = s.PollingDelay
+	return c
+}
+
+func (s azureClientSet) GalleryImageVersionsClient() computeapi.GalleryImageVersionsClientAPI {
+	c := compute.NewGalleryImageVersionsClient(s.subscriptionID)
+	s.configureAutorestClient(&c.Client)
+	c.PollingDelay = s.PollingDelay
+	return c
 }
 
 func (s azureClientSet) PollClient() autorest.Client {

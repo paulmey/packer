@@ -3,12 +3,15 @@ package chroot
 import (
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute"
 )
 
 func TestBuilder_Prepare(t *testing.T) {
 	type config map[string]interface{}
 	type regexMatchers map[string]string // map of regex : error message
+
+	// TODO: paulmey - this test requires metadata to be available, because it renders the default disk template to the VM info
+	// need to stub that out
 
 	tests := []struct {
 		name     string
@@ -19,11 +22,12 @@ func TestBuilder_Prepare(t *testing.T) {
 		{
 			name: "HappyPathFromPlatformImage",
 			config: config{
-				"client_id":         "123",
-				"client_secret":     "456",
-				"subscription_id":   "789",
-				"image_resource_id": "/subscriptions/789/resourceGroups/otherrgname/providers/Microsoft.Compute/images/MyDebianOSImage-{{timestamp}}",
-				"source":            "credativ:Debian:9:latest",
+				"client_id":       "123",
+				"client_secret":   "456",
+				"subscription_id": "789",
+				// TODO: paulmey - remove
+				//"image_resource_id": "/subscriptions/789/resourceGroups/otherrgname/providers/Microsoft.Compute/images/MyDebianOSImage-{{timestamp}}",
+				"source": "credativ:Debian:9:latest",
 			},
 			validate: func(c Config) {
 				if c.OSDiskSizeGB != 0 {
@@ -46,8 +50,9 @@ func TestBuilder_Prepare(t *testing.T) {
 		{
 			name: "HappyPathFromPlatformImage",
 			config: config{
-				"image_resource_id": "/subscriptions/789/resourceGroups/otherrgname/providers/Microsoft.Compute/images/MyDebianOSImage-{{timestamp}}",
-				"source":            "/subscriptions/789/resourceGroups/testrg/providers/Microsoft.Compute/disks/diskname",
+				// TODO: paulmey - remove
+				//"image_resource_id": "/subscriptions/789/resourceGroups/otherrgname/providers/Microsoft.Compute/images/MyDebianOSImage-{{timestamp}}",
+				"source": "/subscriptions/789/resourceGroups/testrg/providers/Microsoft.Compute/disks/diskname",
 			},
 		},
 	}
