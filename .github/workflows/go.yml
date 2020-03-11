@@ -25,5 +25,5 @@ jobs:
     - name: Build
       run: |
         export GOPATH=`pwd`
-        cd github.com/hashicorp/packer
+        cd src/github.com/hashicorp/packer
         make ci
