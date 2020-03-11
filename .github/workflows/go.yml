@@ -17,17 +17,12 @@ jobs:
         go-version: 1.13
       id: go
 
-    - name: Check out code into the Go module directory
+    - name: Check out code
       uses: actions/checkout@v2
 
-    - name: Get dependencies
+    - name: Huh?
       run: |
-        go get -v -t -d ./...
-        if [ -f Gopkg.toml ]; then
-            curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-            dep ensure
-        fi
-      if: false
+        echo $GOPATH
 
     - name: Build
       run: make ci
