@@ -30,4 +30,4 @@ jobs:
       if: false
 
     - name: Build
-      run: make deps
+      run: make ci
