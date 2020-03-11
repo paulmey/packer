@@ -30,4 +30,4 @@ jobs:
       if: false
 
     - name: Build
-      run: go build -v .
+      run: make deps
