@@ -2,7 +2,9 @@ name: Go
 
 on:
   push:
-    branches: [ master, chroot-* ]
+    branches:
+    - master
+    - 'chroot-*'
 
 jobs:
 
