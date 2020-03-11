@@ -22,12 +22,8 @@ jobs:
       with:
         path: src/github.com/hashicorp/packer
 
-    - name: Huh?
-      run: |
-        echo $GOPATH
-        pwd
-        ls -al
-        tree
-
     - name: Build
-      run: make ci
+      run: |
+        export GOPATH=`pwd`
+        cd github.com/hashicorp/packer
+        make ci
