@@ -41,7 +41,7 @@ func (s *StepVerifySharedImageDestination) Run(ctx context.Context, state multis
 		s.Image.ImageName,
 	)
 
-	ui.Say(fmt.Sprintf("Validating that shared image %s exists",
+	ui.Say(fmt.Sprintf("Validating that shared image %q exists",
 		imageURI))
 
 	image, err := azcli.GalleryImagesClient().Get(ctx,

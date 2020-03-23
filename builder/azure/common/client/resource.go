@@ -95,6 +95,21 @@ func (r Resource) Validate() error {
 	return nil
 }
 
+// Parent produces a resource ID representing the parent resource if this is a child resource
+func (r Resource) Parent() (Resource, error) {
+	newLen := len(r.ResourceType) - 1
+	if newLen == 0 {
+		return Resource{}, errors.New("Top-level resource has no parent")
+	}
+	return Resource{
+		Subscription:  r.Subscription,
+		ResourceGroup: r.ResourceGroup,
+		Provider:      r.Provider,
+		ResourceType:  r.ResourceType[:newLen],
+		ResourceName:  r.ResourceName[:newLen],
+	}, nil
+}
+
 type CompoundName []string
 
 func (n CompoundName) String() string {

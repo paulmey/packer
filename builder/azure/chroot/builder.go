@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/packer/template/interpolate"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-12-01/compute"
-	"github.com/Azure/go-autorest/autorest/azure"
 )
 
 // BuilderID is the unique ID for this builder
@@ -98,7 +97,7 @@ type Config struct {
 	ImageHyperVGeneration string `mapstructure:"image_hyperv_generation"`
 
 	// If set to `true`, leaves the temporary disks and snapshots behind in the Packer VM resource group. Defaults to `false`
-	SkipCleanup bool `mapstructure:"skip_cleanup"`
+	SkipCleanup bool `mapstructure:"skip_clean_up"`
 
 	ctx interpolate.Context
 }
@@ -108,6 +107,7 @@ type sourceType string
 const (
 	sourcePlatformImage sourceType = "PlatformImage"
 	sourceDisk          sourceType = "Disk"
+	sourceSharedImage   sourceType = "SharedImage"
 )
 
 // GetContext implements ContextProvider to allow steps to use the config context
@@ -238,10 +238,16 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 		if _, err := client.ParsePlatformImageURN(b.config.Source); err == nil {
 			log.Println("Source is platform image:", b.config.Source)
 			b.config.sourceType = sourcePlatformImage
-		} else if id, err := azure.ParseResourceID(b.config.Source); err == nil &&
-			strings.EqualFold(id.Provider, "Microsoft.Compute") && strings.EqualFold(id.ResourceType, "disks") {
+		} else if id, err := client.ParseResourceID(b.config.Source); err == nil &&
+			strings.EqualFold(id.Provider, "Microsoft.Compute") &&
+			strings.EqualFold(id.ResourceType.String(), "disks") {
 			log.Println("Source is a disk resource ID:", b.config.Source)
 			b.config.sourceType = sourceDisk
+		} else if id, err := client.ParseResourceID(b.config.Source); err == nil &&
+			strings.EqualFold(id.Provider, "Microsoft.Compute") &&
+			strings.EqualFold(id.ResourceType.String(), "galleries/images/versions") {
+			log.Println("Source is a shared image ID:", b.config.Source)
+			b.config.sourceType = sourceSharedImage
 		} else {
 			errs = packer.MultiErrorAppend(
 				errs, fmt.Errorf("source: %q is not a valid platform image specifier, nor is it a disk resource ID", b.config.Source))
@@ -377,7 +383,7 @@ var _ packer.Builder = &Builder{}
 func buildsteps(config Config, info *client.ComputeInfo) []multistep.Step {
 	// Build the steps
 	var steps []multistep.Step
-	addSteps := func(s ...multistep.Step) { // convenience
+	addSteps := func(s ...multistep.Step) { // convenience function
 		steps = append(steps, s...)
 	}
 
@@ -436,6 +442,21 @@ func buildsteps(config Config, info *client.ComputeInfo) []multistep.Step {
 					HyperVGeneration:       config.ImageHyperVGeneration,
 					SourceDiskResourceID:   config.Source,
 					Location:               info.Location,
+
+					SkipCleanup: config.SkipCleanup,
+				})
+		case sourceSharedImage:
+			addSteps(
+				&StepVerifySharedImageSource{
+					SharedImageID:  config.Source,
+					SubscriptionID: info.SubscriptionID,
+					Location:       info.Location,
+				},
+				&StepCreateNewDisk{
+					ResourceID:            config.TemporaryOSDiskID,
+					DiskSizeGB:            config.OSDiskSizeGB,
+					SourceImageResourceID: config.Source,
+					Location:              info.Location,
 
 					SkipCleanup: config.SkipCleanup,
 				})
